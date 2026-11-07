@@ -196,24 +196,34 @@ class JobEditor:
                                          active=self.job.get("enabled", True))
         g.add(self.enabled_row)
         self.dest_names = list(self.cfg["destinations"])
-        self.dest_row = Adw.ComboRow(title="Destination", model=Gtk.StringList.new(self.dest_names or ["None yet"]))
+        self.dest_row = Adw.ComboRow(title="Destination", model=Gtk.StringList.new(self.dest_names))
         if self.job.get("destination") in self.dest_names:
             self.dest_row.set_selected(self.dest_names.index(self.job["destination"]))
-        self.dest_row.set_sensitive(bool(self.dest_names))
-        self.dest_row.add_suffix(icon_button("list-add-symbolic", "Add a destination",
-                                             lambda: DestEditor(self.win, None, on_saved=self._dest_added).present()))
+        self.dest_row.add_suffix(icon_button("list-add-symbolic", "Add another destination", self._add_dest))
         self.dest_row.connect("notify::selected", lambda *_: self._update_drive_trigger())
         g.add(self.dest_row)
+        # First job ever: no destinations yet, so offer to create one right here.
+        self.no_dest_row = Adw.ActionRow(title="Destination",
+                                         subtitle="Where backups are stored. None set up yet.")
+        self.no_dest_row.add_suffix(text_button("Add Destination", self._add_dest, "suggested-action"))
+        g.add(self.no_dest_row)
+        self.dest_row.set_visible(bool(self.dest_names))
+        self.no_dest_row.set_visible(not self.dest_names)
         page.add(g)
+
+    def _add_dest(self) -> None:
+        DestEditor(self.win, None, on_saved=self._dest_added).present()
 
     def _dest_added(self, name: str) -> None:
         fresh = backend.config_dict()
         self.cfg["destinations"] = fresh["destinations"]
         self.dest_names = list(fresh["destinations"])
         self.dest_row.set_model(Gtk.StringList.new(self.dest_names))
-        self.dest_row.set_sensitive(True)
+        self.dest_row.set_visible(True)
+        self.no_dest_row.set_visible(False)
         if name in self.dest_names:
             self.dest_row.set_selected(self.dest_names.index(name))
+        self._update_drive_trigger()
 
     def _what(self, page):
         g = Adw.PreferencesGroup(title="What to back up")
