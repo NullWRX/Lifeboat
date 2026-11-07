@@ -5,13 +5,11 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
-import shlex
-import subprocess
 import time
 from pathlib import Path
 
 from .. import system
-from ..util import LifeboatError, run, run_out, which
+from ..util import LifeboatError, run, which
 from .base import Context, Module, Plan, existing, home_paths
 
 # ---------------------------------------------------------------------------

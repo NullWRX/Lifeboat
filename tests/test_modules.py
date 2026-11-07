@@ -1,4 +1,3 @@
-import os
 
 from lifeboat import util
 from lifeboat.config import Job

@@ -8,7 +8,10 @@ or when you plug in a drive. Every backup is a **normal folder** you can open in
 manager. Files that didn't change are shared between backups (hard links), so keeping many
 costs little space.
 
-![Overview](docs/screenshots/overview.png)
+| | |
+|---|---|
+| ![Overview](docs/screenshots/overview.png) | ![A backup in progress](docs/screenshots/progress.png) |
+| ![Browsing a backup](docs/screenshots/browse.png) | ![Restore with a preview](docs/screenshots/restore.png) |
 
 ## What it can back up
 
@@ -117,6 +120,10 @@ Backups are plain files. To restore with owners and permissions:
 ```
 sudo rsync -aHAX --numeric-ids <snapshot>/files/./home/me/.config /
 ```
+
+## Testing
+
+See [docs/TESTING.md](docs/TESTING.md) for a VM test plan.
 
 ## Status
 

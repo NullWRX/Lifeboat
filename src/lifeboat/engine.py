@@ -17,7 +17,7 @@ from pathlib import Path
 from . import __version__, config, destinations, notify, paths, retention, snapshots, status, system
 from .modules import registry
 from .modules.base import Context
-from .util import LifeboatError, Unavailable, file_lock, human_duration, human_size, log, require_root, run
+from .util import LifeboatError, Unavailable, file_lock, human_duration, human_size, log, require_root
 
 EXIT_OK = 0
 EXIT_FAILED = 1

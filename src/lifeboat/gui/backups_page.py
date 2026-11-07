@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import os
 
-from gi.repository import Adw, Gio, GLib, Gtk
+from gi.repository import Adw, GLib, Gtk
 
 from .. import restore as restore_mod
 from . import backend
 from .widgets import (alert, clear_group, confirm, dialog_shell, full_time, icon_button, size, status_icon,
-                      text_button, when, wrap_label)
+                      text_button, when)
 
 MAX_ROWS = 3000
 
