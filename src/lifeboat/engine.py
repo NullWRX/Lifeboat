@@ -304,6 +304,10 @@ def run_job(name: str, trigger: str = "manual", *, do_prune: bool = True) -> dic
         result.update(status="cancelled", message="Cancelled. The next run continues where this one stopped.")
     except LifeboatError as exc:
         result.update(status="failed", message=str(exc))
+    except PermissionError as exc:
+        log.error("permission error:\n%s", traceback.format_exc())
+        result.update(status="failed", message=destinations.permission_message(exc.filename or "/")
+                      if exc.filename else f"Permission denied: {exc}")
     except Exception as exc:  # unexpected: keep the traceback in the log
         log.error("unexpected error:\n%s", traceback.format_exc())
         result.update(status="failed", message=f"Unexpected error: {exc}")

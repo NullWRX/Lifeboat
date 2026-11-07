@@ -202,6 +202,11 @@ def serve() -> int:
         except (LifeboatError, engine.Unavailable) as exc:
             resp = {"id": req.get("id") if isinstance(req, dict) else None, "error": str(exc),
                     "unavailable": isinstance(exc, engine.Unavailable)}
+        except PermissionError as exc:
+            log.error("helper permission error:\n%s", traceback.format_exc())
+            resp = {"id": req.get("id") if isinstance(req, dict) else None,
+                    "error": f"Permission denied: {exc.filename or exc}. "
+                             + (destinations.permission_message(exc.filename) if exc.filename else "")}
         except TypeError as exc:
             resp = {"id": req.get("id") if isinstance(req, dict) else None, "error": f"Bad request: {exc}"}
         except Exception as exc:

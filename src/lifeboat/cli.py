@@ -667,6 +667,12 @@ def main(argv: list[str] | None = None) -> int:
     except LifeboatError as exc:
         print(f"lifeboat: {exc}", file=sys.stderr)
         return 75 if isinstance(exc, engine.Unavailable) else 1
+    except PermissionError as exc:
+        if exc.filename and os.geteuid() == 0:
+            print(f"lifeboat: {destinations.permission_message(exc.filename)}", file=sys.stderr)
+        else:
+            print(f"lifeboat: permission denied: {exc.filename or exc}. Most commands need sudo.", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         return 130
     except BrokenPipeError:

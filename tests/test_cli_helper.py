@@ -51,3 +51,23 @@ def test_helper_rejects_unknown_methods(monkeypatch):
     assert replies[2]["result"]["version"]
     assert "error" in replies[3]
     assert "No job named" in replies[4]["error"]
+
+
+def test_root_squash_gets_a_clear_message(tmp_path, monkeypatch):
+    """Error 13 from a NAS that squashes root must explain the fix, not show a bare errno."""
+    from pathlib import Path
+    from lifeboat import cli, destinations, system
+    monkeypatch.setattr(system, "fstype_of", lambda p: "nfs4")
+    monkeypatch.setattr(system, "disks_for_path", lambda p: set())
+    real_mkdir = Path.mkdir
+
+    def refuse(self, *a, **k):
+        if "lifeboat" in self.parts:
+            raise PermissionError(13, "Permission denied", str(self))
+        return real_mkdir(self, *a, **k)
+    monkeypatch.setattr(Path, "mkdir", refuse)
+    dest = config.Destination(name="nas", type="folder", path=str(tmp_path))
+    res = cli.check_destination(dest, "pc")
+    assert not res["ok"]
+    assert "root squash" in res["message"] and "Maproot" in res["message"]
+    assert "Errno" not in res["message"]

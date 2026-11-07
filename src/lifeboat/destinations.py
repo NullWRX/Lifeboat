@@ -153,19 +153,45 @@ def open_destination(dest: Destination, hostname: str, *, create: bool = True) -
                 log.warning("cleanup failed: %s", exc)
 
 
+def permission_message(path) -> str:
+    """Explain a 'permission denied' (error 13) on a destination in terms of what to fix."""
+    fs = system.fstype_of(str(path))
+    if fs.startswith("nfs"):
+        return (f"The NAS won't let this PC's root user write to {path}. NFS shares usually turn root "
+                "into a nobody user (\"root squash\"), and Lifeboat runs as root. Fix it on the NAS: on "
+                "TrueNAS, edit the NFS share, open Advanced Options and set Maproot User and Maproot Group "
+                "to root (limit the share to this PC's IP address). On other NAS systems, allow "
+                "no_root_squash for this PC.")
+    if fs in ("cifs", "smb3"):
+        return (f"{path} is an SMB/Windows share, which can't keep Linux file owners and doesn't let root "
+                "write by default. Use an NFS share or a local drive instead.")
+    return (f"Lifeboat (running as root) isn't allowed to write to {path}. Check that the folder isn't "
+            "on a read-only or restricted mount, and pick a different folder if needed.")
+
+
+def _mkdir(path: Path, **kw) -> None:
+    try:
+        path.mkdir(**kw)
+    except PermissionError:
+        raise LifeboatError(permission_message(path.parent if not path.exists() else path)) from None
+
+
 def _make_repo(opened: Opened) -> None:
     if not opened.base.is_dir():
         raise LifeboatError(f"{opened.base} doesn't exist or isn't a folder")
     top = opened.base / paths.REPO_DIRNAME
-    if not top.exists():
-        top.mkdir(mode=0o700)
-        (top / "README.txt").write_text(
-            "Backups made by Lifeboat (rsync snapshots).\n"
-            "Each snapshot folder holds files/ (a normal copy of the backed-up paths),\n"
-            "meta/ (package lists, disk layout...) and manifest.json.\n"
-            "Unchanged files are hard links between snapshots, so every snapshot is complete\n"
-            "but only changed files take extra space. Restore with Lifeboat or plain cp/rsync.\n")
-    opened.repo.mkdir(parents=True, exist_ok=True)
+    try:
+        if not top.exists():
+            top.mkdir(mode=0o700)
+            (top / "README.txt").write_text(
+                "Backups made by Lifeboat (rsync snapshots).\n"
+                "Each snapshot folder holds files/ (a normal copy of the backed-up paths),\n"
+                "meta/ (package lists, disk layout...) and manifest.json.\n"
+                "Unchanged files are hard links between snapshots, so every snapshot is complete\n"
+                "but only changed files take extra space. Restore with Lifeboat or plain cp/rsync.\n")
+        opened.repo.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        raise LifeboatError(permission_message(opened.base)) from None
 
 
 def _open_folder(dest: Destination, hostname: str) -> Opened:
@@ -236,7 +262,7 @@ def _open_drive(dest: Destination, hostname: str, cleanups: list) -> Opened:
         cleanups.append(lambda t=str(target): _umount(t))
         mount_point, ours = str(target), True
     base = Path(mount_point) / dest.subdir if dest.subdir else Path(mount_point)
-    base.mkdir(parents=True, exist_ok=True)
+    _mkdir(base, parents=True, exist_ok=True)
     return Opened(dest, mount_point, base, base / paths.REPO_DIRNAME / hostname, encrypted, ours)
 
 
@@ -262,7 +288,7 @@ def _open_nfs(dest: Destination, hostname: str, cleanups: list) -> Opened:
         cleanups.append(lambda t=str(target): _umount(t))
         ours = True
     base = target / dest.subdir if dest.subdir else target
-    base.mkdir(parents=True, exist_ok=True)
+    _mkdir(base, parents=True, exist_ok=True)
     return Opened(dest, str(target), base, base / paths.REPO_DIRNAME / hostname, dest.encrypted, ours)
 
 
@@ -311,6 +337,9 @@ def probe(opened: Opened) -> Capabilities:
             cap.acl = run(["setfacl", "-m", "u:54321:r", str(f)], check=False, timeout=30).returncode == 0
         else:
             cap.acl = cap.fstype in NATIVE_FS
+    except PermissionError:
+        cap.problems.append(permission_message(opened.repo))
+        return cap
     except OSError as exc:
         cap.problems.append(f"Can't write to {opened.repo}: {exc.strerror}")
         return cap
@@ -337,6 +366,10 @@ def probe(opened: Opened) -> Capabilities:
             msg += " The NFS export maps root to nobody (root squash); allow root on the export (TrueNAS: Maproot User = root)."
         cap.warnings.append(msg)
 
+    if opened.dest.type == "folder" and cap.fstype.startswith("nfs"):
+        cap.warnings.append("This folder is on an NFS share mounted by the system. If the NAS goes down, "
+                            "a backup can freeze waiting for it (hard mounts do that). Use the Network "
+                            "share (NFS) destination type instead: Lifeboat mounts it with timeouts.")
     if not cap.hardlinks:
         cap.problems.append(f"This destination ({cap.fstype}) can't store hard links, which snapshots need. "
                             "Use an ext4, btrfs or xfs drive, or an NFS share.")
