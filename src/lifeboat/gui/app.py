@@ -16,7 +16,7 @@ from .backend import HelperClient  # noqa: E402
 from .backups_page import BackupsPage  # noqa: E402
 from .dialogs import History, LogView, Preferences  # noqa: E402
 from .overview_page import OverviewPage  # noqa: E402
-from .setup_page import JobEditor, SetupPage  # noqa: E402
+from .setup_page import DestinationsPage, JobEditor, JobsPage  # noqa: E402
 
 
 class Window(Adw.ApplicationWindow):
@@ -31,10 +31,12 @@ class Window(Adw.ApplicationWindow):
         self.stack = Adw.ViewStack()
         self.overview = OverviewPage(self)
         self.backups = BackupsPage(self)
-        self.setup = SetupPage(self)
+        self.jobs = JobsPage(self)
+        self.destinations = DestinationsPage(self)
         self.stack.add_titled_with_icon(self.overview, "overview", "Overview", "emblem-ok-symbolic")
         self.stack.add_titled_with_icon(self.backups, "backups", "Backups", "document-open-recent-symbolic")
-        self.stack.add_titled_with_icon(self.setup, "setup", "Jobs", "emblem-system-symbolic")
+        self.stack.add_titled_with_icon(self.jobs, "jobs", "Jobs", "emblem-system-symbolic")
+        self.stack.add_titled_with_icon(self.destinations, "destinations", "Destinations", "drive-harddisk-symbolic")
         self.stack.connect("notify::visible-child-name", self._on_page)
 
         header = Adw.HeaderBar()
@@ -99,7 +101,8 @@ class Window(Adw.ApplicationWindow):
     def reload_all(self) -> None:
         self.check_config()
         self.overview.rebuild()
-        self.setup.refresh()
+        self.jobs.refresh()
+        self.destinations.refresh()
         self.backups.refresh_jobs()
 
     def toast(self, text: str) -> None:

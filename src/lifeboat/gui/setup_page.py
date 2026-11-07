@@ -54,33 +54,25 @@ def save_config(win, cfg_dict: dict, on_done, ntfy_token=None) -> None:
     win.helper.call("save_config", params, done)
 
 
-class SetupPage(Adw.PreferencesPage):
+class JobsPage(Adw.PreferencesPage):
     def __init__(self, win):
         super().__init__()
         self.win = win
-        self.jobs_group = Adw.PreferencesGroup(title="Backup jobs",
-                                               description="A job is what to back up, where, and when.")
+        self.group = Adw.PreferencesGroup(title="Backup jobs",
+                                          description="A job is what to back up, where it goes, and when.")
         add_job = text_button("", win.new_job, "flat")
         add_job.set_child(Adw.ButtonContent(icon_name="list-add-symbolic", label="Add Job"))
-        self.jobs_group.set_header_suffix(add_job)
-        self.add(self.jobs_group)
-        self.dest_group = Adw.PreferencesGroup(title="Destinations",
-                                               description="Places backups are stored. Several jobs can share one.")
-        add_dest = text_button("", lambda: DestEditor(win, None).present(), "flat")
-        add_dest.set_child(Adw.ButtonContent(icon_name="list-add-symbolic", label="Add Destination"))
-        self.dest_group.set_header_suffix(add_dest)
-        self.add(self.dest_group)
+        self.group.set_header_suffix(add_job)
+        self.add(self.group)
         self.rows: list = []
-        self.drows: list = []
         self.refresh()
 
     def refresh(self) -> None:
-        clear_group(self.jobs_group, self.rows)
-        clear_group(self.dest_group, self.drows)
+        clear_group(self.group, self.rows)
         cfg = backend.load_config()
         if not cfg.jobs:
             r = Adw.ActionRow(title="No jobs yet", subtitle="Add one to start backing up.")
-            self.jobs_group.add(r)
+            self.group.add(r)
             self.rows.append(r)
         for name, job in cfg.jobs.items():
             sub = f"{job.schedule.describe() if job.enabled else 'Turned off'} · to {job.destination}"
@@ -89,22 +81,68 @@ class SetupPage(Adw.PreferencesPage):
             r.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
             r.set_activatable(True)
             r.connect("activated", lambda _r, n=name: JobEditor(self.win, n).present())
-            self.jobs_group.add(r)
+            self.group.add(r)
             self.rows.append(r)
+
+
+class DestinationsPage(Adw.PreferencesPage):
+    def __init__(self, win):
+        super().__init__()
+        self.win = win
+        self.group = Adw.PreferencesGroup(title="Destinations",
+                                          description="Where backups are stored: a drive, a folder or a NAS share. "
+                                                      "Several jobs can share one.")
+        add = text_button("", lambda: DestEditor(win, None).present(), "flat")
+        add.set_child(Adw.ButtonContent(icon_name="list-add-symbolic", label="Add Destination"))
+        self.group.set_header_suffix(add)
+        self.add(self.group)
+        self.rows: list = []
+        self.refresh()
+
+    def refresh(self) -> None:
+        clear_group(self.group, self.rows)
+        cfg = backend.load_config()
         if not cfg.destinations:
-            r = Adw.ActionRow(title="No destinations yet", subtitle="Add the drive, folder or NAS share to back up to.")
-            self.dest_group.add(r)
-            self.drows.append(r)
+            r = Adw.ActionRow(title="No destinations yet",
+                              subtitle="Add the drive, folder or NAS share to back up to.")
+            self.group.add(r)
+            self.rows.append(r)
+        kinds = {t[0]: t[1] for t in DEST_TYPES}
         for name, d in cfg.destinations.items():
             used = [j.name for j in cfg.jobs.values() if j.destination == name]
-            sub = d.describe() + (f" · used by {', '.join(used)}" if used else " · not used")
-            r = Adw.ActionRow(title=name, subtitle=GLib.markup_escape_text(sub))
+            bits = [kinds.get(d.type, d.type), d.describe()]
+            if d.encrypted:
+                bits.append("encrypted")
+            bits.append(f"used by {', '.join(used)}" if used else "not used by any job")
+            r = Adw.ActionRow(title=name, subtitle=GLib.markup_escape_text(" · ".join(bits)))
             r.add_prefix(Gtk.Image.new_from_icon_name(DEST_ICONS.get(d.type, "folder-symbolic")))
+            r.add_suffix(text_button("Test", lambda n=name: self._test(n), "flat"))
             r.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
             r.set_activatable(True)
             r.connect("activated", lambda _r, n=name: DestEditor(self.win, n).present())
-            self.dest_group.add(r)
-            self.drows.append(r)
+            self.group.add(r)
+            self.rows.append(r)
+
+    def _test(self, name: str) -> None:
+        dest = backend.config_dict()["destinations"].get(name)
+        if not dest:
+            return
+        self.win.toast(f"Testing {name}…")
+
+        def done(res, err):
+            if err:
+                alert(self.win, f"Couldn't test {name}", err)
+                return
+            lines = [] if res.get("ok") else [res.get("message", "")]
+            cap = res.get("capabilities")
+            if cap:
+                lines.append(f"{cap['fstype']} · {human_size(cap['free_bytes'])} free of "
+                             f"{human_size(cap['total_bytes'])} · storage mode: {cap['mode']}")
+                lines += cap.get("warnings", [])
+            heading = "Ready for backups" if res.get("ok") else (
+                "Not reachable" if not res.get("available") else "Can't use this destination")
+            alert(self.win, f"{name}: {heading}", "\n\n".join(x for x in lines if x))
+        self.win.helper.call("check_destination", {"destination": dest, "name": name}, done)
 
 
 # ---------------------------------------------------------------------------
