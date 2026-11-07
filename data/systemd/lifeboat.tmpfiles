@@ -1,0 +1,9 @@
+# Runtime and state folders for Lifeboat.
+d /run/lifeboat 0755 root root -
+d /run/lifeboat/status 0755 root root -
+d /run/lifeboat/locks 0700 root root -
+d /run/lifeboat/mnt 0700 root root -
+d /var/lib/lifeboat 0755 root root -
+d /var/lib/lifeboat/undo 0700 root root -
+d /var/log/lifeboat 0700 root root -
+d /etc/lifeboat 0755 root root -

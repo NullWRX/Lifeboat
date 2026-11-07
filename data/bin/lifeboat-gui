@@ -1,0 +1,10 @@
+#!/usr/bin/python3
+# Lifeboat app (GTK 4 / libadwaita).
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, "/usr/lib/lifeboat")
+
+from lifeboat.gui.app import main  # noqa: E402
+
+sys.exit(main())

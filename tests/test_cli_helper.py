@@ -1,0 +1,53 @@
+import io
+import json
+import sys
+
+from lifeboat import cli, config, helper, schedule
+
+
+def test_parser_has_every_command():
+    p = cli.build_parser()
+    for cmd in ("status", "run", "restore", "prune", "config", "schedule", "helper", "hook"):
+        args = {"status": [], "run": ["x"], "restore": ["x", "y", "/z"], "prune": ["x"], "config": ["show"],
+                "schedule": [], "helper": [], "hook": ["pacman"]}[cmd]
+        assert p.parse_args([cmd, *args]).fn
+
+
+def test_status_json_without_jobs(capsys):
+    config.save(config.Config())
+    assert cli.main(["status", "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["jobs"] == []
+
+
+def test_timer_and_cron_rendering():
+    cfg = config.parse(config.example())
+    text = schedule.render_timer(cfg.jobs["daily"])
+    assert "OnCalendar=*-*-* 02:30:00" in text and "Persistent=true" in text
+    assert "Unit=lifeboat@daily.service" in text
+    assert "30 2 * * *" in schedule.cron_lines(cfg)
+
+
+def test_udev_rule_only_for_drive_jobs():
+    cfg = config.parse(config.example())
+    assert schedule.render_udev(cfg) == ""
+    cfg.jobs["daily"].triggers.on_drive_connect = True
+    rule = schedule.render_udev(cfg)
+    assert 'ENV{ID_FS_UUID}=="PUT-FILESYSTEM-UUID-HERE"' in rule
+    assert "lifeboat-plug@daily.service" in rule
+
+
+def test_helper_rejects_unknown_methods(monkeypatch):
+    monkeypatch.setattr("os.geteuid", lambda: 0)
+    lines = ['{"id": 1, "method": "_expire"}', '{"id": 2, "method": "ping"}', "not json",
+             '{"id": 4, "method": "browse", "params": {"job": "nope", "snapshot": "x"}}']
+    monkeypatch.setattr(sys, "stdin", io.StringIO("\n".join(lines) + "\n"))
+    out = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", out)
+    helper.serve()
+    replies = [json.loads(line) for line in out.getvalue().splitlines()]
+    assert replies[0]["result"]["ready"]
+    assert "Unknown request" in replies[1]["error"]
+    assert replies[2]["result"]["version"]
+    assert "error" in replies[3]
+    assert "No job named" in replies[4]["error"]

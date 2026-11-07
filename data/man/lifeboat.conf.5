@@ -1,0 +1,227 @@
+.TH LIFEBOAT.CONF 5 "2026-11-07" "lifeboat 0.1.0" "File Formats"
+.SH NAME
+lifeboat.conf \- Lifeboat configuration
+.SH SYNOPSIS
+.I /etc/lifeboat/config.toml
+.SH DESCRIPTION
+A TOML file with three sections:
+.BR [settings] ,
+.B [destinations.NAME]
+tables and
+.B [jobs.NAME]
+tables. Names use lowercase letters, digits, "\-" and "_" (up to 32).
+Edit it with
+.B sudo lifeboat config edit
+(validates before saving) or the Lifeboat app. Unknown keys are errors, so typos are caught.
+Values not given take the defaults shown.
+.SH SETTINGS
+.TP
+.BR hostname " = """""
+Folder name for this PC inside destinations. Empty means the system host name.
+.TP
+.BR notify_on " = ""failure"""
+.BR always ,
+.B failure
+(failures and warnings; skipped runs only once no backup succeeded for 7 days) or
+.BR never .
+.TP
+.BR notify_desktop " = true"
+Pop-up notifications for logged-in users.
+.TP
+.BR ntfy_url " = """""
+An ntfy topic URL. An access token, if needed, goes in
+.I /etc/lifeboat/secrets.toml
+as
+.BR ntfy_token .
+.TP
+.BR log_keep " = 30"
+Logs kept per job.
+.SH DESTINATIONS
+.TP
+.BR type " = ""folder"" | ""drive"" | ""nfs"""
+.TP
+.BR path " (folder)"
+An existing absolute path, normally on a second drive. A folder on the system's own disk is
+refused unless
+.BR same_disk_ok " = true."
+.TP
+.BR uuid " (drive)"
+Filesystem UUID (see
+.BR "lifeboat drives" ).
+For a LUKS drive use the LUKS container's UUID; it's unlocked with
+.B keyfile
+if not already open. The drive is mounted under
+.I /run/lifeboat/mnt
+when needed and unmounted afterwards. Not connected means the run is skipped, not failed.
+.TP
+.BR server ", " export ", " options " (nfs)"
+Lifeboat mounts the share itself with
+.B soft,timeo=150,retrans=3
+so a dead NAS fails the run instead of freezing the PC.
+.B options
+adds mount options such as
+.BR vers=4.2 .
+.TP
+.BR subdir " (drive, nfs)"
+Use a folder inside the drive or share.
+.TP
+.BR encrypted " = false"
+Set when the storage is encrypted (detected automatically for LUKS drives and folders on
+dm-crypt). Required for the
+.B secrets
+module and LUKS header backups.
+.SH JOBS
+.TP
+.B destination
+Name of a destination.
+.TP
+.BR enabled " = true"
+When false, only manual runs happen.
+.TP
+.BR modules " = []"
+Any of:
+.BR etc ,
+.BR packages ,
+.BR disk\-layout ,
+.BR services ,
+.BR dotfiles ,
+.BR configs ,
+.BR desktop ,
+.BR home ,
+.BR browsers ,
+.BR secrets ,
+.BR system .
+.B lifeboat modules
+describes them.
+.TP
+.BR users " = []"
+Users whose home folders the per-user modules cover. Empty means every regular user.
+.TP
+.BR include " = []"
+Extra absolute paths to back up.
+.TP
+.BR exclude " = []"
+rsync exclude patterns, for example
+.B "/home/*/Videos"
+or
+.BR "*.iso" .
+.TP
+.BR one_file_system " = true"
+Don't descend into other filesystems mounted inside backed-up folders.
+.TP
+.BR allow_unencrypted_secrets " = false"
+Save keys and LUKS headers even on unencrypted destinations.
+.TP
+.BR allow_lossy " = false"
+Allow destinations that can't keep file owners at all.
+.TP
+.BR pre_command ", " post_command " = """""
+Shell commands run as root before and after the backup. A failing
+.B pre_command
+fails the run.
+.B post_command
+gets
+.BR LIFEBOAT_STATUS " and " LIFEBOAT_SNAPSHOT .
+.TP
+.BR healthcheck_url " = """""
+Pinged healthchecks.io style:
+.IR url/start ,
+.IR url ,
+.IR url/fail .
+.SS [jobs.NAME.schedule]
+.TP
+.BR mode " = ""manual"""
+.BR manual ,
+.BR hourly ,
+.BR daily ,
+.BR weekly ,
+.BR monthly ,
+.BR custom .
+.TP
+.BR time " = ""02:30"""
+24-hour time. Hourly uses only the minutes.
+.TP
+.BR weekday " = ""sun"""
+.TP
+.BR day " = 1"
+Day of the month, 1 to 28.
+.TP
+.BR calendar " = """""
+For
+.BR custom :
+a
+.BR systemd.time (7)
+calendar expression such as
+.BR "Mon..Fri 18:00" .
+.TP
+.BR random_delay_min " = 0"
+.PP
+Missed runs (PC off) run at the next boot.
+.SS [jobs.NAME.triggers]
+.TP
+.BR before_pacman " = false"
+Run before every pacman transaction. Repeated transactions within 10 minutes reuse the last backup.
+.TP
+.BR on_drive_connect " = false"
+Run when the destination drive is plugged in (drive destinations only).
+.TP
+.BR min_interval_hours " = 0"
+Skip these extra runs if the last success is newer than this.
+.SS [jobs.NAME.retention]
+.TP
+.BR keep_last " = 3, " keep_hourly " = 0, " keep_daily " = 7, " keep_weekly " = 4, " keep_monthly " = 6, " keep_yearly " = 0"
+Keep the newest N snapshots, then the newest snapshot in each of the last N hours, days,
+ISO weeks, months and years. A snapshot kept by any rule stays.
+.TP
+.BR keep_within_days " = 0"
+Keep everything from the last N days.
+.TP
+.BR keep_all " = false"
+Never remove snapshots.
+.TP
+.BR min_free_gb " = 0"
+After normal pruning, remove the oldest snapshots until this much space is free.
+.TP
+.BR prune_after_backup " = true"
+.PP
+Pinned snapshots and the newest snapshot are never removed.
+.SH EXAMPLE
+.nf
+[settings]
+notify_on = "failure"
+
+[destinations.usb]
+type = "drive"
+uuid = "3f2a9c1e-5b7d-4e2a-9c1e-5b7d4e2a9c1e"
+
+[destinations.nas]
+type = "nfs"
+server = "192.168.20.50"
+export = "/mnt/MainPool/Backups"
+subdir = "pcs"
+
+[jobs.system]
+destination = "usb"
+modules = ["etc", "packages", "disk\-layout", "services", "dotfiles", "configs", "desktop"]
+[jobs.system.schedule]
+mode = "daily"
+time = "12:30"
+[jobs.system.triggers]
+before_pacman = true
+
+[jobs.home]
+destination = "nas"
+modules = ["home", "browsers"]
+exclude = ["/home/*/Downloads"]
+[jobs.home.schedule]
+mode = "weekly"
+weekday = "sun"
+time = "03:00"
+[jobs.home.retention]
+keep_last = 2
+keep_weekly = 8
+keep_monthly = 12
+.fi
+.SH SEE ALSO
+.BR lifeboat (8),
+.BR systemd.time (7)

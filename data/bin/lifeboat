@@ -1,0 +1,11 @@
+#!/usr/bin/python3
+# Lifeboat command-line tool. The code lives in /usr/lib/lifeboat so Python
+# upgrades never require rebuilding the package.
+import sys
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, "/usr/lib/lifeboat")
+
+from lifeboat.cli import main  # noqa: E402
+
+sys.exit(main())

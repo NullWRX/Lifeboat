@@ -1,0 +1,11 @@
+#!/bin/sh
+# Lifeboat's rsync "remote shell" for local copies.
+# rsync can only give an option (like --fake-super) to one side of a copy when that side is
+# "remote". This script makes the remote side a plain local process: drop the host name, then
+# run the command. The first argument is rsync's --rsync-path ("rsync --fake-super"), which is
+# split on spaces like a real remote shell would. File names travel inside the rsync protocol
+# (-s), never on this command line.
+shift
+cmd=$1
+shift
+exec $cmd "$@"

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Lifeboat
+GenericName=Backups
+Comment=Back up and restore your Arch Linux system
+Exec=lifeboat-gui
+Icon=io.github.nullwrx.Lifeboat
+Terminal=false
+Type=Application
+Categories=GTK;System;Utility;Archiving;
+Keywords=backup;restore;snapshot;rsync;timeshift;
+StartupNotify=true

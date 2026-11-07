@@ -1,0 +1,55 @@
+# Maintainer: NullWRX <your-email@example.com>
+#
+# Builds Lifeboat from the latest commit on GitHub. Use this to test before a release:
+#   git clone https://github.com/NullWRX/lifeboat && cd lifeboat/packaging/lifeboat-git && makepkg -si
+
+pkgbase=lifeboat-git
+pkgname=(lifeboat-git lifeboat-gui-git)
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Snapshot backups for Arch Linux, built on rsync"
+arch=('any')
+url="https://github.com/NullWRX/lifeboat"
+license=('GPL-3.0-or-later')
+makedepends=('git' 'python')
+checkdepends=('python-pytest' 'rsync')
+source=("lifeboat::git+${url}.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd lifeboat
+  local base
+  base=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/lifeboat/__init__.py)
+  printf "%s.r%s.g%s" "$base" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+check() {
+  cd lifeboat
+  PYTHONPATH=src python -m pytest -q tests
+}
+
+package_lifeboat-git() {
+  pkgdesc="Snapshot backups for Arch Linux, built on rsync (command line, timers, pacman hook)"
+  depends=('python>=3.12' 'rsync' 'util-linux' 'systemd')
+  optdepends=('lifeboat-gui-git: the graphical app'
+              'nfs-utils: back up to NFS shares'
+              'cryptsetup: encrypted backup drives and LUKS header backups'
+              'btrfs-progs: record btrfs subvolume layout'
+              'lvm2: record LVM layout'
+              'efibootmgr: record UEFI boot entries'
+              'libnotify: desktop notifications'
+              'dconf: save GNOME settings as text')
+  provides=('lifeboat')
+  conflicts=('lifeboat')
+  cd lifeboat
+  make DESTDIR="$pkgdir" PREFIX=/usr install-core
+}
+
+package_lifeboat-gui-git() {
+  pkgdesc="Snapshot backups for Arch Linux, built on rsync (GTK app)"
+  depends=('lifeboat-git' 'python-gobject' 'gtk4' 'libadwaita' 'librsvg' 'polkit')
+  provides=('lifeboat-gui')
+  conflicts=('lifeboat-gui')
+  cd lifeboat
+  make DESTDIR="$pkgdir" PREFIX=/usr install-gui
+}

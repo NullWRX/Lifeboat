@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.nullwrx.Lifeboat</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Lifeboat</name>
+  <summary>Back up and restore your Arch Linux system</summary>
+  <description>
+    <p>Lifeboat makes rsync snapshot backups of your system settings, dotfiles, app settings,
+    desktop, packages, home folders or the whole system, to a second drive, a USB drive or an
+    NFS share. Every snapshot is a normal folder you can browse, and unchanged files are shared
+    between snapshots so they take no extra space.</p>
+    <p>Schedule backups, run them before every pacman upgrade or when a drive is plugged in,
+    keep as many as you like, and restore single files or whole folders with a preview first.</p>
+  </description>
+  <launchable type="desktop-id">io.github.nullwrx.Lifeboat.desktop</launchable>
+  <url type="homepage">https://github.com/NullWRX/lifeboat</url>
+  <url type="bugtracker">https://github.com/NullWRX/lifeboat/issues</url>
+  <developer id="io.github.nullwrx">
+    <name>NullWRX</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-07"/>
+  </releases>
+</component>
