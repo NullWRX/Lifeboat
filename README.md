@@ -113,6 +113,17 @@ See `man lifeboat` and `man lifeboat.conf` for everything else.
   `pkexec`, so you enter your password once per session. Backups and restores run as systemd
   units, so closing the app never interrupts them.
 
+### Reinstalled? Use your existing backups
+
+Each PC keeps its backups in a folder named after it, marked with a fingerprint of the
+machine so two computers with the same name never mix their backups. After a reinstall,
+choose **Use Existing Backups** on first start (or **Find Backups** on the Destinations tab),
+point it at the drive or NAS, and pick the PC. Lifeboat recreates its jobs and continues the
+same backups. Imported jobs start turned off so backups of the fresh system can't push out
+the old ones before you've restored. Encrypted (LUKS) drives ask for their passphrase.
+
+From the command line: `sudo lifeboat find-backups nas`, then `sudo lifeboat adopt nas <pc>`.
+
 ### Restoring without Lifeboat
 
 Backups are plain files. To restore with owners and permissions:

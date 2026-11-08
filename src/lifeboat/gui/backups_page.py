@@ -7,7 +7,7 @@ import os
 from gi.repository import Adw, GLib, Gtk
 
 from .. import restore as restore_mod
-from . import backend
+from . import backend, discover
 from .widgets import (alert, clear_group, confirm, dialog_shell, full_time, icon_button, size, status_icon,
                       text_button, when)
 
@@ -113,7 +113,7 @@ class BackupsPage(Gtk.Stack):
                 return
             self.snaps = res["snapshots"]
             self._fill(res)
-        self.win.helper.call("list_snapshots", {"job": job}, done)
+        discover.call_unlocking(self.win, "list_snapshots", {"job": job}, done)
 
     def _fill(self, res: dict) -> None:
         clear_group(self.snap_group, self.snap_rows)

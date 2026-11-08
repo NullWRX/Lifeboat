@@ -11,6 +11,21 @@ from gi.repository import Gio, GLib
 from .. import config, overview, paths, status
 
 
+class HelperError(str):
+    """An error message from the helper, with flags (locked drive, unavailable destination)."""
+    locked = False
+    unavailable = False
+    uuid = ""
+
+
+def _error(msg: dict) -> HelperError:
+    err = HelperError(msg.get("error") or "Unknown error")
+    err.locked = bool(msg.get("locked"))
+    err.unavailable = bool(msg.get("unavailable"))
+    err.uuid = msg.get("uuid") or ""
+    return err
+
+
 class HelperClient:
     """Talks JSON lines to `pkexec lifeboat helper`, started on first use.
 
@@ -87,7 +102,7 @@ class HelperClient:
         elif msg.get("id") in self.pending:
             cb = self.pending.pop(msg["id"])
             if "error" in msg:
-                cb(None, msg["error"])
+                cb(None, _error(msg))
             else:
                 cb(msg.get("result"), None)
         self._read_next()

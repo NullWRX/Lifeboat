@@ -23,6 +23,8 @@ _lifeboat() {
     'unpin:let pruning remove a snapshot again'
     'delete:delete one snapshot'
     'cleanup:remove Lifeboat folders no job uses'
+    'find-backups:list backups already stored at a destination'
+    'adopt:continue existing backups on this PC'
     'check:test a destination'
     'drives:list drives that can hold backups'
     'exports:list the NFS exports of a server'
@@ -40,7 +42,7 @@ _lifeboat() {
   case $words[2] in
     run|start|cancel|list|show|browse|restore|prune|pin|unpin|delete|history|log)
       (( CURRENT == 3 )) && _lifeboat_names jobs ;;
-    check) (( CURRENT == 3 )) && _lifeboat_names destinations ;;
+    check|find-backups|adopt) (( CURRENT == 3 )) && _lifeboat_names destinations ;;
     config) (( CURRENT == 3 )) && _values 'action' show edit check import example path ;;
     schedule) (( CURRENT == 3 )) && _values 'action' sync show cron ;;
   esac

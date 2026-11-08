@@ -24,6 +24,7 @@ from . import config, destinations, paths, snapshots
 from .util import LifeboatError, Unavailable, file_lock, log
 
 README = "README.txt"
+HOST_FILE = "host.json"  # identity.HOST_FILE
 
 
 def location_key(d: config.Destination) -> tuple:
@@ -113,7 +114,9 @@ def tidy(base: Path, host: str) -> list[str]:
     top = base / paths.REPO_DIRNAME
     host_dir = top / host
     with contextlib.suppress(OSError):
-        if host_dir.is_dir() and not any(host_dir.iterdir()):
+        # Only the PC marker left (no job folders): the folder holds nothing worth keeping.
+        if host_dir.is_dir() and {p.name for p in host_dir.iterdir()} <= {HOST_FILE}:
+            (host_dir / HOST_FILE).unlink(missing_ok=True)
             host_dir.rmdir()
             removed.append(str(host_dir))
     with contextlib.suppress(OSError):

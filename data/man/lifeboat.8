@@ -111,6 +111,17 @@ app or with
 .B config edit
 does this automatically and asks before deleting backups.
 .TP
+.BI find\-backups " destination"
+List the backups already stored at a destination, by PC: jobs, how many backups, newest.
+.TP
+.BI adopt " destination pc " [ job ...]
+Use existing backups, for example after reinstalling: recreate the PC's jobs from the
+settings saved with them and continue its backups on this computer. If
+.I pc
+differs from this PC's name, this PC takes that name. Imported jobs start turned off (so
+backups of a fresh system can't push out the old ones before you restore), and commands
+that run before or after backups are not imported.
+.TP
 .BI check " destination"
 Test a destination: reachable, writable, filesystem, free space, and how file owners and
 permissions will be stored.
@@ -151,8 +162,11 @@ The log of the latest (or a named) run.
 lists available logs.
 .SH HOW BACKUPS ARE STORED
 .nf
-<destination>/lifeboat/<host>/<job>/
-    snapshots/
+<destination>/lifeboat/<host>/
+    host.json                which computer this folder belongs to
+    <job>/
+        job.json             the job's settings, to recreate it after a reinstall
+        snapshots/
         2026-11-07_02-30-00/
             files/          the backed-up paths, laid out from /
             meta/           package lists, disk layout, service lists...
@@ -166,6 +180,20 @@ On destinations that can't store Linux owners directly but do support extended a
 (for example an NFS 4.2 share that maps root to nobody), owners and permissions are stored in
 extended attributes ("fake-super" mode). Restore those with Lifeboat, or with
 .B rsync \-\-fake\-super.
+.SH WHICH COMPUTER OWNS A FOLDER
+Each PC keeps its backups in a folder named after it (its host name, or the name set in the
+app or with
+.B hostname
+in
+.BR lifeboat.conf (5)).
+.I host.json
+records one-way fingerprints of the computers allowed to write there (from
+.IR /etc/machine\-id ;
+the ID itself is not stored). If a different computer with the same name tries to back up
+to the same place, the backup is refused instead of mixing the two. After a reinstall, use
+.B adopt
+(or Find Backups in the app) to continue the old backups; it adds the new computer's
+fingerprint. Renaming the PC moves its folder at every reachable destination.
 .SH RESTORING WITHOUT LIFEBOAT
 Copy files straight out of
 .IR snapshots/<time>/files/ .

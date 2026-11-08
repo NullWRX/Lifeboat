@@ -86,6 +86,11 @@ class Window(Adw.ApplicationWindow):
     def new_job(self) -> None:
         JobEditor(self, None).present()
 
+    def use_existing(self) -> None:
+        """First run on a reinstalled PC: add the destination, then offer what's stored there."""
+        from .setup_page import DestEditor
+        DestEditor(self, None, find_after=True).present()
+
     def show_log(self, job: str, name: str | None) -> None:
         LogView(self, job, name).present()
 

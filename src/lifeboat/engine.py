@@ -14,7 +14,7 @@ import time
 import traceback
 from pathlib import Path
 
-from . import __version__, config, destinations, notify, paths, retention, snapshots, status, system
+from . import __version__, config, destinations, identity, notify, paths, retention, snapshots, status, system
 from .modules import registry
 from .modules.base import Context
 from .util import LifeboatError, Unavailable, file_lock, human_duration, human_size, log, require_root
@@ -395,8 +395,11 @@ def _backup(cfg, job, opened, trigger, started, st, result, do_prune) -> None:
     notes = [w for w in cap.warnings if not (cap.same_disk and opened.dest.same_disk_ok and "same disk" in w)]
     result["notes"] += notes
 
+    identity.verify(opened.repo, opened.repo.name)
+    identity.claim(opened.repo, opened.repo.name, [job.name])
     jobdir = snapshots.job_dir(opened.repo, job.name)
     snapshots.snaps_dir(jobdir).mkdir(parents=True, exist_ok=True)
+    identity.save_job(jobdir, job)
     snapshots.cleanup(jobdir)
     pruned = space_guard(jobdir, job, st)
 

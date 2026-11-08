@@ -27,6 +27,14 @@ NO_HARDLINK_FS = {"vfat", "msdos", "exfat", "fuseblk"}
 NFS_PORT = 2049
 
 
+class Locked(Unavailable):
+    """An encrypted (LUKS) drive that hasn't been unlocked."""
+
+    def __init__(self, uuid: str):
+        self.uuid = uuid
+        super().__init__("The backup drive is encrypted and locked. Unlock it, or set a key file.")
+
+
 @dataclass
 class Capabilities:
     fstype: str = "unknown"
@@ -232,7 +240,7 @@ def _open_drive(dest: Destination, hostname: str, cleanups: list) -> Opened:
         child = next((d for d in system.lsblk() if d.get("pkname") == dev.get("name") and d.get("type") == "crypt"), None)
         if child is None:
             if not dest.keyfile:
-                raise Unavailable("The backup drive is encrypted and locked. Unlock it, or set a key file.")
+                raise Locked(dest.uuid)
             if not os.path.isfile(dest.keyfile):
                 raise LifeboatError(f"Key file {dest.keyfile} doesn't exist")
             mapper = f"lifeboat-{dest.uuid[:8].lower()}"
@@ -429,6 +437,24 @@ def list_drives() -> list[dict]:
             "usable": fstype not in NO_HARDLINK_FS,
         })
     return out
+
+
+def unlock_drive(uuid: str, passphrase: str) -> str:
+    """Unlock a LUKS drive with its passphrase (stays unlocked until locked or unplugged)."""
+    dev = _find_dev(uuid)
+    if not dev or dev.get("fstype") != "crypto_LUKS":
+        raise LifeboatError("That drive isn't connected, or isn't encrypted.")
+    if any(d.get("pkname") == dev.get("name") and d.get("type") == "crypt" for d in system.lsblk()):
+        return "already unlocked"
+    mapper = f"lifeboat-{uuid[:8].lower()}"
+    proc = run(["cryptsetup", "open", "--key-file=-", dev["path"], mapper], check=False,
+               input=passphrase, timeout=120)
+    if proc.returncode == 2:
+        raise LifeboatError("Wrong passphrase.")
+    if proc.returncode != 0:
+        raise LifeboatError(f"Couldn't unlock the drive: {proc.stderr.strip()}")
+    system.lsblk.cache_clear()
+    return "unlocked"
 
 
 def nfs_exports(server: str) -> list[str]:

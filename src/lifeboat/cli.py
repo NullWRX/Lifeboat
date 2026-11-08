@@ -15,8 +15,8 @@ import threading
 import time
 from pathlib import Path
 
-from . import (APP_NAME, __version__, cleanup, config, destinations, engine, launch, overview, paths, restore,
-               schedule, snapshots, status, system)
+from . import (APP_NAME, __version__, adopt, cleanup, config, destinations, engine, identity, launch, overview,
+               paths, restore, schedule, snapshots, status, system)
 from .modules import registry
 from .util import LifeboatError, atomic_write, file_lock, human_duration, human_size, log, require_root
 
@@ -306,7 +306,14 @@ def check_destination(dest: config.Destination, hostname: str) -> dict:
             res["capabilities"] = cap.to_dict()
             res["location"] = str(opened.repo)
             res["ok"] = not cap.problems
+            try:
+                identity.verify(opened.repo, hostname)
+            except identity.OtherComputer as exc:
+                res["ok"] = False
+                cap.problems.append(str(exc))
             res["message"] = " ".join(cap.problems) or "Ready for backups."
+            found = identity.discover(opened.base)
+            res["found"] = [{"name": p["name"], "jobs": len(p["jobs"]), "newest": p["newest"]} for p in found]
             cleanup.tidy(opened.base, hostname)
     except engine.Unavailable as exc:
         res.update(available=False, message=str(exc))
@@ -390,6 +397,61 @@ def cmd_cleanup(a) -> int:
     return 0
 
 
+def _this_host(cfg: config.Config) -> str:
+    return (cfg.settings.hostname or system.hostname()).lower()
+
+
+def cmd_find_backups(a) -> int:
+    require_root("Looking for backups")
+    cfg = config.load()
+    if a.destination not in cfg.destinations:
+        raise LifeboatError(f"No destination named '{a.destination}'")
+    res = adopt.find(cfg.destinations[a.destination], _this_host(cfg))
+    if a.json:
+        out_json(res)
+        return 0
+    if not res["pcs"]:
+        print(f"No backups found in {res['location']}.")
+        return 0
+    print(f"Backups in {res['location']}:")
+    for pc in res["pcs"]:
+        tag = " (this PC)" if pc["name"] == res["this_pc"] or pc["this_machine"] else ""
+        print(f"\n  {pc['name']}{tag}, last backup {fmt_time(pc['newest'])}")
+        for j in pc["jobs"]:
+            print(f"    {j['name']:<16} {j['snapshots']} backup(s), newest {fmt_time(j['newest'])}  "
+                  f"[{', '.join(j['modules']) or 'extra folders'}]")
+    print("\nTo continue one PC's backups on this one: sudo lifeboat adopt "
+          f"{a.destination} <pc> [job...]")
+    return 0
+
+
+def cmd_adopt(a) -> int:
+    require_root("Using existing backups")
+    cfg = config.load()
+    host = _this_host(cfg)
+    if a.pc != host:
+        print(f"This PC will save its backups as '{a.pc}' from now on (was '{host}').")
+        if not confirm("Continue?", a.yes):
+            return 1
+    new, imported, skipped, notes, info = adopt.use_backups(cfg, a.destination, a.pc, a.jobs or None, host)
+    changes, reports = apply_config(new)
+    adopt.record_imported(a.destination, a.pc, info)
+    for c in changes:
+        print(c)
+    for name in imported:
+        print(f"Imported job '{name}' (turned off).")
+    for s in skipped:
+        print(f"Skipped {s}")
+    for n in notes:
+        print(f"Note: {n}")
+    print_cleanup(reports, interactive=False)
+    if imported:
+        print("\nImported jobs start turned off, so a fresh system can't push out your old backups.\n"
+              "Restore what you need (`lifeboat list <job>`, `lifeboat restore ...`), then turn them on with "
+              "`sudo lifeboat config edit` (enabled = true) or in the app.")
+    return 0
+
+
 def cmd_drives(a) -> int:
     drives = destinations.list_drives()
     if a.json:
@@ -440,6 +502,11 @@ def apply_config(cfg: config.Config, text: str | None = None) -> tuple[list[str]
         old = config.load(check=False)
     except LifeboatError:
         old = None
+    old_host = (old.settings.hostname or system.hostname()).lower() if old else None
+    new_host = (cfg.settings.hostname or system.hostname()).lower()
+    if old_host and old_host != new_host and any(s.get("action") in ("backup", "restore", "prune")
+                                                 for s in status.running()):
+        raise LifeboatError("Wait for running backups and restores to finish before renaming this PC.")
     if text is None:
         config.save(cfg)
     else:
@@ -447,8 +514,11 @@ def apply_config(cfg: config.Config, text: str | None = None) -> tuple[list[str]
     changes = schedule.sync(cfg)
     reports = []
     if old is not None:
-        host = (old.settings.hostname or system.hostname()).lower()
-        reports = cleanup.after_save(old, cfg, host)
+        if old_host != new_host:
+            moved, more = adopt.move_host(cfg, old_host, new_host)
+            changes += moved
+            reports += more
+        reports += cleanup.after_save(old, cfg, old_host)
     return changes, reports
 
 
@@ -704,6 +774,16 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("cleanup", cmd_cleanup, "remove this PC's Lifeboat folders that no job uses any more")
     sp.add_argument("path", help="the folder (or mounted drive/share) that holds the 'lifeboat' folder")
     sp.add_argument("--delete-backups", action="store_true", help="also delete backups stored there")
+    sp.add_argument("-y", "--yes", action="store_true")
+
+    sp = add("find-backups", cmd_find_backups, "list backups already stored at a destination, by PC")
+    sp.add_argument("destination")
+    sp.add_argument("--json", action="store_true")
+
+    sp = add("adopt", cmd_adopt, "use existing backups: recreate their jobs and continue them on this PC")
+    sp.add_argument("destination")
+    sp.add_argument("pc", help="PC folder name shown by find-backups")
+    sp.add_argument("jobs", nargs="*", help="only these jobs (default: all)")
     sp.add_argument("-y", "--yes", action="store_true")
 
     sp = add("drives", cmd_drives, "list drives that can hold backups")

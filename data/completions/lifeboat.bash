@@ -7,7 +7,7 @@ _lifeboat_names() {
 _lifeboat() {
     local cur prev words cword
     _init_completion || return
-    local cmds="status run start cancel list show browse restore prune pin unpin delete cleanup check drives exports modules detect config schedule history log"
+    local cmds="status run start cancel list show browse restore prune pin unpin delete cleanup find-backups adopt check drives exports modules detect config schedule history log"
     if (( cword == 1 )); then
         COMPREPLY=($(compgen -W "$cmds --help --version --verbose" -- "$cur"))
         return
@@ -30,7 +30,7 @@ _lifeboat() {
             (( cword == 2 )) && COMPREPLY=($(compgen -W "$(_lifeboat_names jobs)" -- "$cur"))
             [[ $cmd == restore && $prev == --to ]] && _filedir -d
             ;;
-        check)
+        check|find-backups|adopt)
             (( cword == 2 )) && COMPREPLY=($(compgen -W "$(_lifeboat_names destinations)" -- "$cur")) ;;
         config)
             (( cword == 2 )) && COMPREPLY=($(compgen -W "show edit check import example path" -- "$cur"))

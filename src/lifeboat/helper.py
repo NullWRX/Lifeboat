@@ -21,8 +21,8 @@ import sys
 import time
 import traceback
 
-from . import (__version__, cleanup, cli, config, destinations, engine, launch, paths, restore, schedule,
-               snapshots, system)
+from . import (__version__, adopt, cleanup, cli, config, destinations, engine, launch, paths, restore,
+               schedule, snapshots, system)
 from .util import LifeboatError, file_lock, log
 
 IDLE_CLOSE = 90  # seconds a mounted destination stays open between requests
@@ -85,6 +85,36 @@ class Helper:
         self._expire(everything=True)
         changes, reports = cli.apply_config(cfg)
         return {"changes": changes, "cleanup": [r.to_dict() for r in reports]}
+
+    def _dest(self, destination, name):
+        """A destination from the config by name, or from a dict (one being edited)."""
+        if isinstance(destination, str):
+            cfg = config.load()
+            if destination not in cfg.destinations:
+                raise LifeboatError(f"No destination named '{destination}'")
+            return cfg.destinations[destination]
+        cfg, errors = config.from_dict({"destinations": {name or "dest": {k: v for k, v in destination.items() if k != "name"}}})
+        errors = errors or [e for e in config.validate(cfg, module_ids=set()) if e.startswith("destinations")]
+        if errors:
+            raise config.ConfigError(errors)
+        return next(iter(cfg.destinations.values()))
+
+    def find_backups(self, destination, name=None):
+        main = config.load(check=False)
+        return adopt.find(self._dest(destination, name), (main.settings.hostname or system.hostname()).lower())
+
+    def use_backups(self, destination, pc, jobs=None):
+        cfg = config.load()
+        host = (cfg.settings.hostname or system.hostname()).lower()
+        new, imported, skipped, notes, info = adopt.use_backups(cfg, destination, pc, jobs, host)
+        self._expire(everything=True)
+        changes, reports = cli.apply_config(new)
+        adopt.record_imported(destination, pc, info)
+        return {"imported": imported, "skipped": skipped, "notes": notes, "changes": changes,
+                "renamed": pc != host, "cleanup": [r.to_dict() for r in reports]}
+
+    def unlock_drive(self, uuid, passphrase):
+        return {"result": destinations.unlock_drive(str(uuid), str(passphrase))}
 
     def cleanup_location(self, destination, jobs=None, delete_backups=False):
         cfg, errors = config.from_dict({"destinations": {destination.get("name") or "old": {
@@ -222,6 +252,8 @@ def serve() -> int:
         except (LifeboatError, engine.Unavailable) as exc:
             resp = {"id": req.get("id") if isinstance(req, dict) else None, "error": str(exc),
                     "unavailable": isinstance(exc, engine.Unavailable)}
+            if isinstance(exc, destinations.Locked):
+                resp.update(locked=True, uuid=exc.uuid)
         except PermissionError as exc:
             log.error("helper permission error:\n%s", traceback.format_exc())
             resp = {"id": req.get("id") if isinstance(req, dict) else None,

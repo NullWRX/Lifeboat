@@ -71,3 +71,31 @@ def test_root_squash_gets_a_clear_message(tmp_path, monkeypatch):
     assert not res["ok"]
     assert "root squash" in res["message"] and "Maproot" in res["message"]
     assert "Errno" not in res["message"]
+
+
+def test_locked_drive_and_unlock(monkeypatch):
+    import subprocess
+    import pytest
+    from lifeboat import destinations, system
+    from lifeboat.util import LifeboatError
+    luks = {"name": "sdb1", "path": "/dev/sdb1", "type": "part", "fstype": "crypto_LUKS",
+            "uuid": "aaaa-1111", "pkname": "sdb", "mountpoints": []}
+    monkeypatch.setattr(system, "lsblk", type("F", (), {"__call__": lambda s: [luks], "cache_clear": lambda s: None})())
+    monkeypatch.setattr(destinations.os.path, "exists", lambda p: True)
+    dest = config.Destination(name="usb", type="drive", uuid="aaaa-1111")
+    with pytest.raises(destinations.Locked) as exc:
+        with destinations.open_destination(dest, "pc"):
+            pass
+    assert exc.value.uuid == "aaaa-1111"
+
+    calls = []
+
+    def fake_run(cmd, check=True, input=None, timeout=None, **kw):
+        calls.append((cmd, input))
+        return subprocess.CompletedProcess(cmd, 2 if input == "wrong" else 0, "", "No key available")
+    monkeypatch.setattr(destinations, "run", fake_run)
+    with pytest.raises(LifeboatError, match="Wrong passphrase"):
+        destinations.unlock_drive("aaaa-1111", "wrong")
+    assert destinations.unlock_drive("aaaa-1111", "secret") == "unlocked"
+    cmd, given = calls[-1]
+    assert given == "secret" and "secret" not in cmd and "--key-file=-" in cmd

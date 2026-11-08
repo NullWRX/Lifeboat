@@ -9,7 +9,7 @@ from gi.repository import Adw, GLib, Gtk
 from .. import cleanup, config, destinations, schedule, system
 from ..modules import registry
 from ..util import LifeboatError, human_size
-from . import backend
+from . import backend, discover
 from .widgets import DEST_ICONS, alert, clear_group, confirm, dialog_shell, icon_button, text_button
 
 MODES = [("manual", "Manual only"), ("hourly", "Every hour"), ("daily", "Every day"), ("weekly", "Every week"),
@@ -51,6 +51,9 @@ def save_config(win, cfg_dict: dict, on_done, ntfy_token=None) -> None:
             return
         win.reload_all()
         on_done(True)
+        for c in (res or {}).get("changes") or []:
+            if c.startswith(("Moved", "Couldn't reach")) or "another computer" in c:
+                win.toast(c)
         handle_cleanup(win, (res or {}).get("cleanup") or [])
     win.helper.call("save_config", params, done)
 
@@ -137,6 +140,15 @@ class DestinationsPage(Adw.PreferencesPage):
     def __init__(self, win):
         super().__init__()
         self.win = win
+        self.pc_group = Adw.PreferencesGroup(title="This PC")
+        self.pc_row = Adw.ActionRow(title="Name", subtitle="Its backups are kept in a folder with this name "
+                                                            "at every destination")
+        self.pc_row.add_prefix(Gtk.Image.new_from_icon_name("computer-symbolic"))
+        self.pc_label = Gtk.Label(css_classes=["heading"])
+        self.pc_row.add_suffix(self.pc_label)
+        self.pc_row.add_suffix(text_button("Rename", lambda: discover.rename_pc(win), "flat"))
+        self.pc_group.add(self.pc_row)
+        self.add(self.pc_group)
         self.group = Adw.PreferencesGroup(title="Destinations",
                                           description="Where backups are stored: a drive, a folder or a NAS share. "
                                                       "Several jobs can share one.")
@@ -150,6 +162,7 @@ class DestinationsPage(Adw.PreferencesPage):
     def refresh(self) -> None:
         clear_group(self.group, self.rows)
         cfg = backend.load_config()
+        self.pc_label.set_label((cfg.settings.hostname or system.hostname()).lower())
         if not cfg.destinations:
             r = Adw.ActionRow(title="No destinations yet",
                               subtitle="Add the drive, folder or NAS share to back up to.")
@@ -164,6 +177,7 @@ class DestinationsPage(Adw.PreferencesPage):
             bits.append(f"used by {', '.join(used)}" if used else "not used by any job")
             r = Adw.ActionRow(title=name, subtitle=GLib.markup_escape_text(" · ".join(bits)))
             r.add_prefix(Gtk.Image.new_from_icon_name(DEST_ICONS.get(d.type, "folder-symbolic")))
+            r.add_suffix(text_button("Find Backups", lambda n=name: discover.find_backups(self.win, n), "flat"))
             r.add_suffix(text_button("Test", lambda n=name: self._test(n), "flat"))
             r.add_suffix(Gtk.Image.new_from_icon_name("go-next-symbolic"))
             r.set_activatable(True)
@@ -189,8 +203,12 @@ class DestinationsPage(Adw.PreferencesPage):
                 lines += cap.get("warnings", [])
             heading = "Ready for backups" if res.get("ok") else (
                 "Not reachable" if not res.get("available") else "Can't use this destination")
+            if res.get("found"):
+                lines.append("Backups already stored here: " + ", ".join(
+                    f"{p['name']} ({p['jobs']} job{'s' if p['jobs'] != 1 else ''})" for p in res["found"])
+                    + ". Use Find Backups to see them.")
             alert(self.win, f"{name}: {heading}", "\n\n".join(x for x in lines if x))
-        self.win.helper.call("check_destination", {"destination": dest, "name": name}, done)
+        discover.call_unlocking(self.win, "check_destination", {"destination": dest, "name": name}, done)
 
 
 # ---------------------------------------------------------------------------
@@ -582,9 +600,10 @@ class JobEditor:
 # ---------------------------------------------------------------------------
 
 class DestEditor:
-    def __init__(self, win, name: str | None, on_saved=None):
+    def __init__(self, win, name: str | None, on_saved=None, find_after: bool = False):
         self.win = win
         self.on_saved = on_saved
+        self.find_after = find_after
         self.cfg = backend.config_dict()
         self.is_new = name is None
         self.name = name
@@ -802,10 +821,17 @@ class DestEditor:
                         r = Adw.ActionRow(title="Note", subtitle=GLib.markup_escape_text(w))
                         r.set_subtitle_lines(4)
                         rows.append(r)
+                if res.get("found"):
+                    found = ", ".join(f"{p['name']} ({p['jobs']} job{'s' if p['jobs'] != 1 else ''})"
+                                      for p in res["found"])
+                    r = Adw.ActionRow(title="Backups already stored here",
+                                      subtitle=GLib.markup_escape_text(found + ". After saving, you can use them."))
+                    r.add_prefix(Gtk.Image.new_from_icon_name("document-open-recent-symbolic"))
+                    rows.append(r)
             for r in rows:
                 self.test_group.add(r)
                 self.test_rows.append(r)
-        self.win.helper.call("check_destination", {"destination": self._collect(), "name": name}, done)
+        discover.call_unlocking(self.win, "check_destination", {"destination": self._collect(), "name": name}, done)
 
     def _save(self):
         fresh = backend.config_dict()
@@ -832,6 +858,8 @@ class DestEditor:
                 self.win.toast(f"Destination '{name}' saved")
                 if self.on_saved:
                     self.on_saved(name)
+                if self.is_new and (self.find_after or self.on_saved is None):
+                    discover.find_backups(self.win, name, quiet=not self.find_after)
         save_config(self.win, fresh, done)
 
     def _delete(self):
