@@ -21,7 +21,8 @@ import sys
 import time
 import traceback
 
-from . import __version__, cli, config, destinations, engine, launch, paths, restore, schedule, snapshots, system
+from . import (__version__, cleanup, cli, config, destinations, engine, launch, paths, restore, schedule,
+               snapshots, system)
 from .util import LifeboatError, file_lock, log
 
 IDLE_CLOSE = 90  # seconds a mounted destination stays open between requests
@@ -82,7 +83,26 @@ class Helper:
             sec.ntfy_token = ntfy_token
             config.save_secrets(sec)
         self._expire(everything=True)
-        return {"changes": cli.apply_config(cfg)}
+        changes, reports = cli.apply_config(cfg)
+        return {"changes": changes, "cleanup": [r.to_dict() for r in reports]}
+
+    def cleanup_location(self, destination, jobs=None, delete_backups=False):
+        cfg, errors = config.from_dict({"destinations": {destination.get("name") or "old": {
+            k: v for k, v in destination.items() if k != "name"}}})
+        if errors:
+            raise config.ConfigError(errors)
+        dest = next(iter(cfg.destinations.values()))
+        main = config.load(check=False)
+        host = (main.settings.hostname or system.hostname()).lower()
+        # Never delete folders of jobs that (still or again) back up to this same place.
+        in_use = {j.name for j in main.jobs.values()
+                  if main.destinations.get(j.destination)
+                  and cleanup.location_key(main.destinations[j.destination]) == cleanup.location_key(dest)}
+        if jobs is None:
+            report = cleanup.process(dest, host, None, delete_backups=False)  # see what's there
+            jobs = [j["job"] for j in report.jobs]
+        jobs = [j for j in jobs if j not in in_use]
+        return cleanup.process(dest, host, jobs, delete_backups=bool(delete_backups)).to_dict()
 
     def check_calendar(self, expr):
         return {"next": schedule.check_calendar(expr)}

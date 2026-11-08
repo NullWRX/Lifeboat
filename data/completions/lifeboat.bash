@@ -7,7 +7,7 @@ _lifeboat_names() {
 _lifeboat() {
     local cur prev words cword
     _init_completion || return
-    local cmds="status run start cancel list show browse restore prune pin unpin delete check drives exports modules detect config schedule history log"
+    local cmds="status run start cancel list show browse restore prune pin unpin delete cleanup check drives exports modules detect config schedule history log"
     if (( cword == 1 )); then
         COMPREPLY=($(compgen -W "$cmds --help --version --verbose" -- "$cur"))
         return

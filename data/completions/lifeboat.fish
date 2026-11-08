@@ -3,7 +3,7 @@ function __lifeboat_names
     sed -n "s/^\[$argv[1]\.\([a-z0-9_-]*\)\]\$/\1/p" /etc/lifeboat/config.toml 2>/dev/null
 end
 
-set -l cmds status run start cancel list show browse restore prune pin unpin delete check drives exports modules detect config schedule history log
+set -l cmds status run start cancel list show browse restore prune pin unpin delete cleanup check drives exports modules detect config schedule history log
 complete -c lifeboat -f
 complete -c lifeboat -n "not __fish_seen_subcommand_from $cmds" -a "$cmds"
 complete -c lifeboat -n "__fish_seen_subcommand_from run start cancel list show browse restore prune pin unpin delete history log" -a "(__lifeboat_names jobs)"

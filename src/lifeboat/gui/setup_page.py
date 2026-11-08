@@ -6,7 +6,7 @@ import copy
 
 from gi.repository import Adw, GLib, Gtk
 
-from .. import config, destinations, schedule, system
+from .. import cleanup, config, destinations, schedule, system
 from ..modules import registry
 from ..util import LifeboatError, human_size
 from . import backend
@@ -51,7 +51,55 @@ def save_config(win, cfg_dict: dict, on_done, ntfy_token=None) -> None:
             return
         win.reload_all()
         on_done(True)
+        handle_cleanup(win, (res or {}).get("cleanup") or [])
     win.helper.call("save_config", params, done)
+
+
+def handle_cleanup(win, reports: list[dict]) -> None:
+    """After a save: say what was tidied, and ask before deleting backups no job uses any more."""
+    asks = []
+    for r in reports:
+        if not r["available"]:
+            win.toast(f"Couldn't reach {r['label']} to tidy up. Anything there was left alone.")
+        elif r["has_data"]:
+            asks.append(r)
+        elif r["removed"]:
+            win.toast(f"Removed Lifeboat's empty folder from {r['label']}")
+    _ask_next(win, asks)
+
+
+def _ask_next(win, asks: list[dict]) -> None:
+    if not asks:
+        return
+    r, rest = asks[0], asks[1:]
+    d = Adw.AlertDialog(heading="Delete old backups?",
+                        body=f"{r['label']} still holds backups from this PC that no job uses now: "
+                             f"{cleanup.summary_jobs(r['jobs'])}.\n\nKeep them if you might need them. "
+                             "Deleting them can't be undone.")
+    d.add_response("keep", "Keep Them")
+    d.add_response("delete", "Delete Them")
+    d.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+    d.set_default_response("keep")
+    d.set_close_response("keep")
+
+    def on_response(_d, resp):
+        if resp != "delete":
+            win.toast(f"Old backups kept on {r['label']}")
+            _ask_next(win, rest)
+            return
+
+        def done(res, err):
+            if err:
+                win.error("Couldn't delete the old backups", err)
+            else:
+                msg = f"Deleted old backups from {r['label']}" if res.get("removed") else "Nothing was deleted"
+                win.toast(msg + (f". {res['message']}" if res.get("message") else ""))
+            _ask_next(win, rest)
+        win.helper.call("cleanup_location", {"destination": r["destination"],
+                                             "jobs": [j["job"] for j in r["jobs"]],
+                                             "delete_backups": True}, done)
+    d.connect("response", on_response)
+    d.present(win)
 
 
 class JobsPage(Adw.PreferencesPage):

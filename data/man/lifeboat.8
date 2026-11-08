@@ -98,6 +98,19 @@ undoes it.
 .BI delete " job snapshot"
 Delete one snapshot.
 .TP
+.BI cleanup " path"
+Remove this PC's Lifeboat folders at
+.I path
+(the folder, mounted drive or share holding the
+.I lifeboat
+folder) that no job uses any more. Folders without backups are removed; folders with
+backups are only removed with
+.BR \-\-delete\-backups .
+Folders of jobs that still back up there are never touched. Changing destinations in the
+app or with
+.B config edit
+does this automatically and asks before deleting backups.
+.TP
 .BI check " destination"
 Test a destination: reachable, writable, filesystem, free space, and how file owners and
 permissions will be stored.

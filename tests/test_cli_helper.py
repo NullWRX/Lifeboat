@@ -56,7 +56,7 @@ def test_helper_rejects_unknown_methods(monkeypatch):
 def test_root_squash_gets_a_clear_message(tmp_path, monkeypatch):
     """Error 13 from a NAS that squashes root must explain the fix, not show a bare errno."""
     from pathlib import Path
-    from lifeboat import cli, destinations, system
+    from lifeboat import cli, system
     monkeypatch.setattr(system, "fstype_of", lambda p: "nfs4")
     monkeypatch.setattr(system, "disks_for_path", lambda p: set())
     real_mkdir = Path.mkdir

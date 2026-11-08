@@ -15,10 +15,10 @@ import threading
 import time
 from pathlib import Path
 
-from . import (APP_NAME, __version__, config, destinations, engine, launch, overview, paths, restore,
+from . import (APP_NAME, __version__, cleanup, config, destinations, engine, launch, overview, paths, restore,
                schedule, snapshots, status, system)
 from .modules import registry
-from .util import LifeboatError, file_lock, human_duration, human_size, log, require_root
+from .util import LifeboatError, atomic_write, file_lock, human_duration, human_size, log, require_root
 
 STATUS_ICON = {"success": "ok", "warning": "warning", "failed": "FAILED", "skipped": "skipped",
                "cancelled": "cancelled"}
@@ -307,6 +307,7 @@ def check_destination(dest: config.Destination, hostname: str) -> dict:
             res["location"] = str(opened.repo)
             res["ok"] = not cap.problems
             res["message"] = " ".join(cap.problems) or "Ready for backups."
+            cleanup.tidy(opened.base, hostname)
     except engine.Unavailable as exc:
         res.update(available=False, message=str(exc))
     except LifeboatError as exc:
@@ -331,6 +332,62 @@ def cmd_check(a) -> int:
         for w in cap["warnings"]:
             print(f"  note: {w}")
     return 0 if res["ok"] else 1
+
+
+def _bases_in_use(cfg: config.Config) -> dict[str, set[str]]:
+    """Real paths currently holding each job's backups (folders, and mounted drives/shares)."""
+    out: dict[str, set[str]] = {}
+    mounts = system.mounts()
+    for job in cfg.jobs.values():
+        d = cfg.destinations.get(job.destination)
+        if not d:
+            continue
+        bases = []
+        if d.type == "folder":
+            bases.append(d.path)
+        elif d.type == "drive":
+            for dev in system.lsblk():
+                if (dev.get("uuid") or "").lower() == d.uuid.lower():
+                    bases += [os.path.join(m, d.subdir) for m in dev.get("mountpoints") or []]
+                    for c in system.lsblk():
+                        if c.get("pkname") == dev.get("name"):
+                            bases += [os.path.join(m, d.subdir) for m in c.get("mountpoints") or []]
+        else:
+            src = f"{d.server}:{d.export}".rstrip("/")
+            bases += [os.path.join(m.target, d.subdir) for m in mounts if m.source.rstrip("/") == src]
+        for b in bases:
+            out.setdefault(os.path.realpath(b), set()).add(job.name)
+    return out
+
+
+def cmd_cleanup(a) -> int:
+    require_root("Cleaning up")
+    cfg = config.load(check=False)
+    host = (cfg.settings.hostname or system.hostname()).lower()
+    base = Path(a.path)
+    if base.name == paths.REPO_DIRNAME:
+        base = base.parent
+    protect = _bases_in_use(cfg).get(os.path.realpath(base), set())
+    if a.delete_backups:
+        preview = cleanup.clean_path(str(base), host, delete_backups=False, protect=protect, dry_run=True)
+        if preview.has_data:
+            print(f"Backups in {preview.location}: {cleanup.summary(preview)}.")
+            if not confirm("Delete them for good?", a.yes):
+                print("Nothing deleted.")
+                return 1
+    r = cleanup.clean_path(str(base), host, delete_backups=a.delete_backups, protect=protect)
+    if r.removed:
+        print(f"Removed: {', '.join(r.removed)}.")
+    in_use = [k for k in r.kept if k in protect]
+    if in_use:
+        print(f"Kept {', '.join(in_use)}: still backing up here.")
+    if r.has_data:
+        print(f"Still holding backups: {cleanup.summary(r)}. Add --delete-backups to delete them.")
+    if not (r.removed or r.has_data or in_use):
+        print("Nothing to clean up.")
+    if r.message:
+        print(r.message)
+    return 0
 
 
 def cmd_drives(a) -> int:
@@ -373,10 +430,43 @@ def cmd_detect(a) -> int:
     return 0
 
 
-def apply_config(cfg: config.Config) -> list[str]:
-    """Save a validated config and bring timers and rules in line with it."""
-    config.save(cfg)
-    return schedule.sync(cfg)
+def apply_config(cfg: config.Config, text: str | None = None) -> tuple[list[str], list]:
+    """Save a validated config, bring timers in line, and tidy locations no longer used.
+
+    Returns (timer changes, cleanup reports). Empty leftover folders are removed; folders that
+    still hold backups are only reported.
+    """
+    try:
+        old = config.load(check=False)
+    except LifeboatError:
+        old = None
+    if text is None:
+        config.save(cfg)
+    else:
+        atomic_write(paths.CONFIG_FILE, text, 0o644)
+    changes = schedule.sync(cfg)
+    reports = []
+    if old is not None:
+        host = (old.settings.hostname or system.hostname()).lower()
+        reports = cleanup.after_save(old, cfg, host)
+    return changes, reports
+
+
+def print_cleanup(reports: list, interactive: bool) -> None:
+    for r in reports:
+        if r.removed:
+            print(f"Removed Lifeboat's empty folder for {', '.join(r.removed)} from {r.label}.")
+        if not r.available:
+            print(f"Couldn't reach {r.label} to tidy up ({r.message}). Anything there was left alone.")
+        elif r.has_data:
+            print(f"{r.label} still holds backups no job uses: {cleanup.summary(r)}.")
+            if interactive and confirm("Delete them for good?", False):
+                res = cleanup.process(config.Destination(**r.destination), r.location.rsplit("/", 1)[-1],
+                                      r.scope, delete_backups=True)
+                print(f"Deleted: {', '.join(res.removed) or 'nothing'}." + (f" {res.message}" if res.message else ""))
+            else:
+                print("  They were kept. To delete them later, run `sudo lifeboat cleanup <folder>` on the "
+                      "folder (or mounted drive/share) that holds the 'lifeboat' folder.")
 
 
 def _editor() -> list[str]:
@@ -419,9 +509,11 @@ def cmd_config(a) -> int:
                 raise config.ConfigError(errors)
         else:
             cfg = config.parse(text)
-        for change in apply_config(cfg):
+        changes, reports = apply_config(cfg)
+        for change in changes:
             print(change)
         print("Config saved.")
+        print_cleanup(reports, interactive=False)
         return 0
     if a.action == "edit":
         current = paths.CONFIG_FILE.read_text() if paths.CONFIG_FILE.exists() else config.example()
@@ -450,11 +542,11 @@ def cmd_config(a) -> int:
                         return 1
                     continue
                 # Keep the user's own formatting and comments: save the text they wrote.
-                from .util import atomic_write
-                atomic_write(paths.CONFIG_FILE, text, 0o644)
-                for change in schedule.sync(cfg):
+                changes, reports = apply_config(cfg, text)
+                for change in changes:
                     print(change)
                 print("Config saved.")
+                print_cleanup(reports, interactive=sys.stdin.isatty())
                 return 0
         finally:
             os.unlink(tmp)
@@ -608,6 +700,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("check", cmd_check, "test a destination: reachable, writable, what it can store")
     sp.add_argument("destination")
     sp.add_argument("--json", action="store_true")
+
+    sp = add("cleanup", cmd_cleanup, "remove this PC's Lifeboat folders that no job uses any more")
+    sp.add_argument("path", help="the folder (or mounted drive/share) that holds the 'lifeboat' folder")
+    sp.add_argument("--delete-backups", action="store_true", help="also delete backups stored there")
+    sp.add_argument("-y", "--yes", action="store_true")
 
     sp = add("drives", cmd_drives, "list drives that can hold backups")
     sp.add_argument("--json", action="store_true")
