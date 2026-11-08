@@ -1,9 +1,11 @@
-# Lifeboat
+# Mikoshi
 
-Snapshot backups for Arch Linux, built on rsync. A GTK app for everyday use, and a full
-command line for SSH and scripts.
+Snapshot backups for Arch Linux, built on rsync. A GTK app with a neon cyberpunk look for
+everyday use, and a full command line for SSH and scripts.
 
-Lifeboat backs up the parts of your system you pick, on a schedule, before pacman upgrades,
+*Named after the vault where saved minds are kept: Mikoshi keeps saved copies of your system.*
+
+Mikoshi backs up the parts of your system you pick, on a schedule, before pacman upgrades,
 or when you plug in a drive. Every backup is a **normal folder** you can open in a file
 manager. Files that didn't change are shared between backups (hard links), so keeping many
 costs little space.
@@ -34,13 +36,13 @@ Plus any extra folders you add, and rsync exclude patterns.
 ## Where backups can go
 
 - **A folder** on a drive that's always mounted.
-- **A drive** found by UUID, such as a USB drive. Lifeboat mounts it, unlocks it if it's LUKS
+- **A drive** found by UUID, such as a USB drive. Mikoshi mounts it, unlocks it if it's LUKS
   and you gave a key file, and unmounts it afterwards. If it isn't plugged in, the run is
   skipped, not failed.
-- **An NFS share.** Lifeboat mounts it itself with short timeouts, so a NAS that's down makes
+- **An NFS share.** Mikoshi mounts it itself with short timeouts, so a NAS that's down makes
   the job fail instead of freezing your PC.
 
-Lifeboat tests each destination before using it: hard links (FAT and exFAT are refused),
+Mikoshi tests each destination before using it: hard links (FAT and exFAT are refused),
 whether it can keep file owners, and whether it's on the same disk as your system.
 
 ## Install
@@ -48,50 +50,50 @@ whether it can keep file owners, and whether it's on the same disk as your syste
 From the AUR (once published):
 
 ```
-paru -S lifeboat lifeboat-gui
+paru -S mikoshi mikoshi-gui
 ```
 
 Latest development version straight from GitHub:
 
 ```
-git clone https://github.com/NullWRX/lifeboat
-cd lifeboat/packaging/lifeboat-git
+git clone https://github.com/NullWRX/Mikoshi
+cd mikoshi/packaging/mikoshi-git
 makepkg -si
 ```
 
-`lifeboat` is the command line tool, timers and pacman hook (fine on a headless box).
-`lifeboat-gui` adds the app.
+`mikoshi` is the command line tool, timers and pacman hook (fine on a headless box).
+`mikoshi-gui` adds the app.
 
 ## Quick start
 
-**App:** open Lifeboat, choose **Set Up a Backup**, add a destination, pick what to back up
+**App:** open Mikoshi, choose **Set Up a Backup**, add a destination, pick what to back up
 and when, then **Back Up Now**.
 
 **Command line:**
 
 ```
-lifeboat drives                  # find your backup drive's UUID
-sudo lifeboat config edit        # starts from a commented example
-sudo lifeboat check usb          # test the destination
-sudo lifeboat run daily          # first backup, with progress
-lifeboat status
+mikoshi drives                  # find your backup drive's UUID
+sudo mikoshi config edit        # starts from a commented example
+sudo mikoshi check usb          # test the destination
+sudo mikoshi run daily          # first backup, with progress
+mikoshi status
 ```
 
 Restore a file or folder (a preview is shown first, and replaced files are kept in
-`/var/lib/lifeboat/undo/`):
+`/var/lib/mikoshi/undo/`):
 
 ```
-sudo lifeboat list daily
-sudo lifeboat restore daily 2026-11-07_02-30-00 /home/me/.config/kitty
-sudo lifeboat restore --to /tmp/old daily 2026-11-07_02-30-00 /etc
+sudo mikoshi list daily
+sudo mikoshi restore daily 2026-11-07_02-30-00 /home/me/.config/kitty
+sudo mikoshi restore --to /tmp/old daily 2026-11-07_02-30-00 /etc
 ```
 
-See `man lifeboat` and `man lifeboat.conf` for everything else.
+See `man mikoshi` and `man mikoshi.conf` for everything else.
 
 ## How it works
 
 ```
-<destination>/lifeboat/<host>/<job>/
+<destination>/mikoshi/<host>/<job>/
     snapshots/
         2026-11-07_02-30-00/
             files/          the backed-up paths, laid out from /
@@ -108,7 +110,7 @@ See `man lifeboat` and `man lifeboat.conf` for everything else.
   month and year. Pinned snapshots and the newest one are never removed. An optional space
   guard removes the oldest snapshots when the destination gets too full.
 - **Schedules** are systemd timers with `Persistent=true`, so a backup missed while the PC was
-  off runs at the next boot. `lifeboat schedule cron` prints crontab lines if you prefer cron.
+  off runs at the next boot. `mikoshi schedule cron` prints crontab lines if you prefer cron.
 - **The app runs as you.** Anything that needs root goes through a small helper started with
   `pkexec`, so you enter your password once per session. Backups and restores run as systemd
   units, so closing the app never interrupts them.
@@ -118,13 +120,13 @@ See `man lifeboat` and `man lifeboat.conf` for everything else.
 Each PC keeps its backups in a folder named after it, marked with a fingerprint of the
 machine so two computers with the same name never mix their backups. After a reinstall,
 choose **Use Existing Backups** on first start (or **Find Backups** on the Destinations tab),
-point it at the drive or NAS, and pick the PC. Lifeboat recreates its jobs and continues the
+point it at the drive or NAS, and pick the PC. Mikoshi recreates its jobs and continues the
 same backups. Imported jobs start turned off so backups of the fresh system can't push out
 the old ones before you've restored. Encrypted (LUKS) drives ask for their passphrase.
 
-From the command line: `sudo lifeboat find-backups nas`, then `sudo lifeboat adopt nas <pc>`.
+From the command line: `sudo mikoshi find-backups nas`, then `sudo mikoshi adopt nas <pc>`.
 
-### Restoring without Lifeboat
+### Restoring without Mikoshi
 
 Backups are plain files. To restore with owners and permissions:
 
@@ -135,6 +137,12 @@ sudo rsync -aHAX --numeric-ids <snapshot>/files/./home/me/.config /
 ## Testing
 
 See [docs/TESTING.md](docs/TESTING.md) for a VM test plan.
+
+## Coming from Lifeboat
+
+Mikoshi used to be called Lifeboat. Installing `mikoshi-git` replaces `lifeboat-git` and
+carries everything over automatically: config, history, logs, schedules, and the backups at
+your destinations (their `lifeboat` folders become `mikoshi` the next time they're used).
 
 ## Status
 

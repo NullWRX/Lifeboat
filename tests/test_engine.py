@@ -6,8 +6,8 @@ import time
 import pytest
 
 from conftest import needs_root, needs_rsync
-from lifeboat import config, engine, restore, snapshots, status
-from lifeboat.util import LifeboatError
+from mikoshi import config, engine, restore, snapshots, status
+from mikoshi.util import MikoshiError
 
 pytestmark = [needs_root, needs_rsync]
 
@@ -32,7 +32,7 @@ def setup(tmp_path):
 
 
 def jobdir(dest):
-    hosts = list((dest / "lifeboat").iterdir())
+    hosts = list((dest / "mikoshi").iterdir())
     hosts = [h for h in hosts if h.is_dir()]
     return hosts[0] / "t"
 
@@ -118,13 +118,13 @@ def test_missing_folder_is_skipped(setup, tmp_path):
 
 
 def test_restore_guards(tmp_path):
-    with pytest.raises(LifeboatError):
+    with pytest.raises(MikoshiError):
         restore._check_original_target("/usr/bin/ls", force=False)
     restore._check_original_target("/usr/bin/ls", force=True)
     real = tmp_path / "real"
     real.mkdir()
     (tmp_path / "link").symlink_to(real)
-    with pytest.raises(LifeboatError):
+    with pytest.raises(MikoshiError):
         restore._check_original_target(str(tmp_path / "link" / "file"), force=False)
 
 
@@ -134,18 +134,18 @@ def test_browse_cannot_escape(tmp_path):
     (snap_dir / "files" / "out").symlink_to("/etc")
     snap = snapshots.load(snap_dir)
     assert [i["name"] for i in restore.browse(snap, "/")] == ["etc", "out"]
-    with pytest.raises(LifeboatError):
+    with pytest.raises(MikoshiError):
         restore.browse(snap, "/out")
     # ".." can't climb out: absolute paths are normalized, so this is the top of the snapshot.
     assert restore.browse(snap, "/../../") == restore.browse(snap, "/")
     # Reaching through a symlink that points outside is refused.
-    with pytest.raises(LifeboatError):
+    with pytest.raises(MikoshiError):
         restore.browse(snap, "/out/ssh")
 
 
 def test_fake_super_round_trip(tmp_path):
     """Owners survive a destination that stores them in xattrs (NFS with root squash)."""
-    from lifeboat.destinations import Capabilities
+    from mikoshi.destinations import Capabilities
     src = tmp_path / "src"
     src.mkdir()
     f = src / "owned.txt"
@@ -175,7 +175,7 @@ def test_fake_super_round_trip(tmp_path):
 
 def test_full_job_in_fake_super_mode(setup, tmp_path, monkeypatch):
     """A whole job through the remote-shell transport: owners recorded, links shared, restore exact."""
-    from lifeboat import destinations
+    from mikoshi import destinations
     real_probe = destinations.probe
 
     def fake_probe(opened):

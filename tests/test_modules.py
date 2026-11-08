@@ -1,9 +1,9 @@
 
-from lifeboat import util
-from lifeboat.config import Job
-from lifeboat.modules import registry
-from lifeboat.modules.base import Context
-from lifeboat.system import SystemInfo, User
+from mikoshi import util
+from mikoshi.config import Job
+from mikoshi.modules import registry
+from mikoshi.modules.base import Context
+from mikoshi.system import SystemInfo, User
 
 
 def ctx(tmp_path, modules, allow_secrets=False, include=None):

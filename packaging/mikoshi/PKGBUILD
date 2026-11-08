@@ -1,0 +1,49 @@
+# Maintainer: NullWRX <your-email@example.com>
+#
+# Release package. Before publishing a release: tag it (git tag v0.1.0 && git push --tags),
+# then run `updpkgsums` to fill in the checksum and `makepkg --printsrcinfo > .SRCINFO`.
+
+pkgbase=mikoshi
+pkgname=(mikoshi mikoshi-gui)
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Snapshot backups for Arch Linux, built on rsync"
+arch=('any')
+url="https://github.com/NullWRX/Mikoshi"
+license=('GPL-3.0-or-later')
+makedepends=('python')
+checkdepends=('python-pytest' 'rsync')
+source=("$pkgbase-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+check() {
+  cd "$pkgbase-$pkgver"
+  PYTHONPATH=src python -m pytest -q tests
+}
+
+package_mikoshi() {
+  pkgdesc="Snapshot backups for Arch Linux, built on rsync (command line, timers, pacman hook)"
+  depends=('python>=3.12' 'rsync' 'util-linux' 'systemd')
+  conflicts=('lifeboat' 'lifeboat-git')
+  replaces=('lifeboat')
+  install=mikoshi.install
+  optdepends=('mikoshi-gui: the graphical app'
+              'nfs-utils: back up to NFS shares'
+              'cryptsetup: encrypted backup drives and LUKS header backups'
+              'btrfs-progs: record btrfs subvolume layout'
+              'lvm2: record LVM layout'
+              'efibootmgr: record UEFI boot entries'
+              'libnotify: desktop notifications'
+              'dconf: save GNOME settings as text')
+  cd "$pkgbase-$pkgver"
+  make DESTDIR="$pkgdir" PREFIX=/usr install-core
+}
+
+package_mikoshi-gui() {
+  pkgdesc="Snapshot backups for Arch Linux, built on rsync (GTK app)"
+  depends=("mikoshi=$pkgver" 'python-gobject' 'gtk4' 'libadwaita' 'librsvg' 'polkit')
+  conflicts=('lifeboat-gui' 'lifeboat-gui-git')
+  replaces=('lifeboat-gui')
+  cd "$pkgbase-$pkgver"
+  make DESTDIR="$pkgdir" PREFIX=/usr install-gui
+}

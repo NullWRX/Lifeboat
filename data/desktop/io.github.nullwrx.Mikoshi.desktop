@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Mikoshi
+GenericName=Backups
+Comment=Back up and restore your Arch Linux system
+Exec=mikoshi-gui
+Icon=io.github.nullwrx.Mikoshi
+Terminal=false
+Type=Application
+Categories=GTK;System;Utility;Archiving;
+Keywords=backup;restore;snapshot;rsync;timeshift;
+StartupNotify=true

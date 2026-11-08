@@ -1,4 +1,4 @@
-"""Point every Lifeboat path at a throwaway folder before the package is imported."""
+"""Point every Mikoshi path at a throwaway folder before the package is imported."""
 
 import os
 import shutil
@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(tempfile.mkdtemp(prefix="lifeboat-tests-"))
-for var, sub in (("LIFEBOAT_CONFIG_DIR", "etc"), ("LIFEBOAT_STATE_DIR", "state"), ("LIFEBOAT_RUN_DIR", "run"),
-                 ("LIFEBOAT_LOG_DIR", "log"), ("LIFEBOAT_SYSTEMD_DIR", "systemd")):
+ROOT = Path(tempfile.mkdtemp(prefix="mikoshi-tests-"))
+for var, sub in (("MIKOSHI_CONFIG_DIR", "etc"), ("MIKOSHI_STATE_DIR", "state"), ("MIKOSHI_RUN_DIR", "run"),
+                 ("MIKOSHI_LOG_DIR", "log"), ("MIKOSHI_SYSTEMD_DIR", "systemd")):
     os.environ[var] = str(ROOT / sub)
     (ROOT / sub).mkdir(parents=True, exist_ok=True)
-os.environ["LIFEBOAT_UDEV_RULES"] = str(ROOT / "udev" / "90-lifeboat.rules")
+os.environ["MIKOSHI_UDEV_RULES"] = str(ROOT / "udev" / "90-mikoshi.rules")
 (ROOT / "udev").mkdir(exist_ok=True)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))

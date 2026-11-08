@@ -3,6 +3,6 @@ __pycache__/
 .pytest_cache/
 packaging/*/src/
 packaging/*/pkg/
-packaging/*/lifeboat/
+packaging/*/mikoshi/
 packaging/*/*.pkg.tar.*
 packaging/*/*.tar.gz

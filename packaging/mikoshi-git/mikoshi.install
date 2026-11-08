@@ -1,0 +1,9 @@
+# Carry over a Lifeboat install (Mikoshi's earlier name): config, history, timers.
+# Does nothing when there's nothing to migrate.
+post_install() {
+  /usr/bin/mikoshi migrate --quiet || true
+}
+
+post_upgrade() {
+  post_install
+}

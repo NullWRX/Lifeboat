@@ -1,9 +1,9 @@
 import time
 from pathlib import Path
 
-from lifeboat import retention
-from lifeboat.config import Retention
-from lifeboat.snapshots import Snapshot
+from mikoshi import retention
+from mikoshi.config import Retention
+from mikoshi.snapshots import Snapshot
 
 DAY = 86400
 

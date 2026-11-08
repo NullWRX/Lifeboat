@@ -1,0 +1,51 @@
+#compdef mikoshi
+# zsh completion for mikoshi
+
+_mikoshi_names() {
+  local -a names
+  names=(${(f)"$(sed -n "s/^\[$1\.\([a-z0-9_-]*\)\]\$/\1/p" /etc/mikoshi/config.toml 2>/dev/null)"})
+  _describe "$1" names
+}
+
+_mikoshi() {
+  local -a cmds
+  cmds=(
+    'status:show jobs, their last and next runs'
+    'run:run a backup job now and wait for it'
+    'start:start a backup job in the background'
+    'cancel:stop a running backup, restore or prune'
+    'list:list the snapshots of a job'
+    'show:show details of one snapshot'
+    'browse:list files inside a snapshot'
+    'restore:restore files or folders from a snapshot'
+    'prune:remove backups the retention rules no longer keep'
+    'pin:keep a snapshot forever'
+    'unpin:let pruning remove a snapshot again'
+    'delete:delete one snapshot'
+    'cleanup:remove Mikoshi folders no job uses'
+    'find-backups:list backups already stored at a destination'
+    'adopt:continue existing backups on this PC'
+    'check:test a destination'
+    'drives:list drives that can hold backups'
+    'exports:list the NFS exports of a server'
+    'modules:list what can be backed up'
+    'detect:show what Mikoshi detects about this system'
+    'config:show, edit, check or import the configuration'
+    'schedule:sync timers, show schedules, or export cron lines'
+    'history:show past runs'
+    'log:show the log of a run'
+  )
+  if (( CURRENT == 2 )); then
+    _describe 'command' cmds
+    return
+  fi
+  case $words[2] in
+    run|start|cancel|list|show|browse|restore|prune|pin|unpin|delete|history|log)
+      (( CURRENT == 3 )) && _mikoshi_names jobs ;;
+    check|find-backups|adopt) (( CURRENT == 3 )) && _mikoshi_names destinations ;;
+    config) (( CURRENT == 3 )) && _values 'action' show edit check import example path ;;
+    schedule) (( CURRENT == 3 )) && _values 'action' sync show cron ;;
+  esac
+}
+
+_mikoshi "$@"

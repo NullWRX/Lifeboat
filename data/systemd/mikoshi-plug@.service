@@ -1,0 +1,15 @@
+[Unit]
+Description=Mikoshi backup on drive connect (job %i)
+Documentation=man:mikoshi(8)
+After=local-fs.target
+
+[Service]
+Type=oneshot
+# Give the drive (and any desktop automounter) a moment to settle.
+ExecStartPre=/usr/bin/sleep 5
+ExecStart=/usr/bin/mikoshi run --trigger drive %i
+SuccessExitStatus=75
+Nice=10
+IOSchedulingClass=idle
+KillMode=mixed
+TimeoutStopSec=90

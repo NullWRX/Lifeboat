@@ -5,7 +5,7 @@ import os
 import pytest
 
 from conftest import needs_root, needs_rsync
-from lifeboat import adopt, cli, config, engine, identity, snapshots
+from mikoshi import adopt, cli, config, engine, identity, snapshots
 
 pytestmark = [needs_root, needs_rsync]
 
@@ -43,7 +43,7 @@ def fresh_install(nas, monkeypatch, hostname="nspc"):
 
 def test_marker_files(nas):
     nas_dir, _ = nas
-    host = nas_dir / "lifeboat" / "nspc"
+    host = nas_dir / "mikoshi" / "nspc"
     info = identity.read_host(host)
     assert info["name"] == "nspc" and info["machines"] == ["machine-A"] and "daily" in info["jobs"]
     saved = identity.read_host(host / "daily")  # same reader works for any json
@@ -78,7 +78,7 @@ def test_reinstall_finds_and_continues_backups(nas, monkeypatch):
     cli.apply_config(new)
     r = engine.run_job("daily")                      # manual run works even while turned off
     assert r["status"] == "success", r
-    jd = nas_dir / "lifeboat" / "nspc" / "daily"
+    jd = nas_dir / "mikoshi" / "nspc" / "daily"
     snaps = snapshots.list_snapshots(jd)
     assert len(snaps) == 2
     rel = str(src / "f.txt").lstrip("/")
@@ -98,9 +98,9 @@ def test_adopting_another_name_and_renaming(nas, monkeypatch):
     renamed.settings.hostname = "desktop"
     changes, _ = cli.apply_config(renamed)
     assert any("Moved this PC's backups" in c for c in changes)
-    assert not (nas_dir / "lifeboat" / "nspc").exists()
-    assert len(snapshots.list_snapshots(nas_dir / "lifeboat" / "desktop" / "daily")) == 2
-    assert identity.read_host(nas_dir / "lifeboat" / "desktop")["name"] == "desktop"
+    assert not (nas_dir / "mikoshi" / "nspc").exists()
+    assert len(snapshots.list_snapshots(nas_dir / "mikoshi" / "desktop" / "daily")) == 2
+    assert identity.read_host(nas_dir / "mikoshi" / "desktop")["name"] == "desktop"
 
 
 def test_check_reports_collision(nas, monkeypatch):
@@ -109,11 +109,11 @@ def test_check_reports_collision(nas, monkeypatch):
     res = cli.check_destination(cfg.destinations["nas"], "nspc")
     assert not res["ok"] and "Another computer" in res["message"]
     assert res["found"][0]["name"] == "nspc"
-    assert (nas_dir / "lifeboat" / "nspc" / "daily").is_dir()   # testing never removes real backups
+    assert (nas_dir / "mikoshi" / "nspc" / "daily").is_dir()   # testing never removes real backups
 
 
 def test_cli_adopt_records_history(nas, monkeypatch, capsys):
-    from lifeboat import status
+    from mikoshi import status
     nas_dir, _ = nas
     fresh_install(nas_dir, monkeypatch)
     assert cli.main(["find-backups", "nas"]) == 0

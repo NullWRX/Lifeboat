@@ -1,0 +1,16 @@
+[Unit]
+Description=Mikoshi scheduled backup (job %i)
+Documentation=man:mikoshi(8)
+After=local-fs.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mikoshi run --trigger timer %i
+# 75 = skipped (drive not connected, NAS offline): not a failure.
+SuccessExitStatus=75
+Nice=10
+IOSchedulingClass=idle
+# SIGTERM goes to Mikoshi, which stops rsync cleanly and keeps the partial run for next time.
+KillMode=mixed
+TimeoutStopSec=90

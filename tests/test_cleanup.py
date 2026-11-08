@@ -6,7 +6,7 @@ import os
 import pytest
 
 from conftest import needs_root, needs_rsync
-from lifeboat import cleanup, cli, config, engine, snapshots
+from mikoshi import cleanup, cli, config, engine, snapshots
 
 
 def two_dest_config(a, b) -> config.Config:
@@ -57,11 +57,11 @@ def test_switching_destination(tmp_path):
         j.retention = config.Retention(keep_last=5)
     config.save(cfg)
     assert engine.run_job("j1")["status"] == "success"
-    host = next(p for p in (a / "lifeboat").iterdir() if p.is_dir()).name
+    host = next(p for p in (a / "mikoshi").iterdir() if p.is_dir()).name
     # Another PC sharing the destination must never be touched.
-    (a / "lifeboat" / "otherpc" / "x").mkdir(parents=True)
+    (a / "mikoshi" / "otherpc" / "x").mkdir(parents=True)
     # j2 has an empty folder (all its backups were deleted by hand).
-    (a / "lifeboat" / host / "j2" / "snapshots").mkdir(parents=True)
+    (a / "mikoshi" / host / "j2" / "snapshots").mkdir(parents=True)
 
     new = config.load()
     new.jobs["j1"].destination = "b"
@@ -71,12 +71,12 @@ def test_switching_destination(tmp_path):
     r = reports[0]
     assert r.removed == ["j2"]                       # empty: removed automatically
     assert [j["job"] for j in r.jobs] == ["j1"] and r.has_data   # real backups: only reported
-    assert (a / "lifeboat" / host / "j1").is_dir()
+    assert (a / "mikoshi" / host / "j1").is_dir()
 
     gone = cleanup.process(config.Destination(**r.destination), host, ["j1"], delete_backups=True)
     assert gone.removed == ["j1"]
-    assert not (a / "lifeboat" / host).exists()
-    assert (a / "lifeboat" / "otherpc").is_dir()    # other PC's folder kept, so lifeboat/ stays
+    assert not (a / "mikoshi" / host).exists()
+    assert (a / "mikoshi" / "otherpc").is_dir()    # other PC's folder kept, so mikoshi/ stays
 
 
 @needs_root
@@ -84,7 +84,7 @@ def test_test_destination_leaves_nothing(tmp_path):
     d = config.Destination(name="t", type="folder", path=str(tmp_path), same_disk_ok=True)
     res = cli.check_destination(d, "pc")
     assert res["ok"], res
-    assert not (tmp_path / "lifeboat").exists()
+    assert not (tmp_path / "mikoshi").exists()
 
 
 @needs_root
@@ -96,14 +96,14 @@ def test_cli_cleanup_protects_jobs_in_use(tmp_path, capsys):
     cfg = two_dest_config(a, b)
     config.save(cfg)
     engine.run_job("j1")
-    host = next(p for p in (a / "lifeboat").iterdir() if p.is_dir()).name
-    (a / "lifeboat" / host / "oldjob" / "snapshots").mkdir(parents=True)
+    host = next(p for p in (a / "mikoshi").iterdir() if p.is_dir()).name
+    (a / "mikoshi" / host / "oldjob" / "snapshots").mkdir(parents=True)
     assert cli.main(["cleanup", "--delete-backups", "--yes", str(a)]) == 0
     out = capsys.readouterr().out
     assert "Removed: oldjob" in out and "Kept j1: still backing up here" in out
-    assert (a / "lifeboat" / host / "j1").is_dir()
-    assert not (a / "lifeboat" / host / "oldjob").exists()
+    assert (a / "mikoshi" / host / "j1").is_dir()
+    assert not (a / "mikoshi" / host / "oldjob").exists()
     with pytest.raises(SystemExit):
         cli.main(["cleanup"])
-    assert snapshots.list_snapshots(a / "lifeboat" / host / "j1")
-    assert os.path.exists(a / "lifeboat" / "README.txt")
+    assert snapshots.list_snapshots(a / "mikoshi" / host / "j1")
+    assert os.path.exists(a / "mikoshi" / "README.txt")

@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from lifeboat import config, tomlw
+from mikoshi import config, tomlw
 
-MAN5 = Path(__file__).resolve().parent.parent / "data" / "man" / "lifeboat.conf.5"
+MAN5 = Path(__file__).resolve().parent.parent / "data" / "man" / "mikoshi.conf.5"
 
 
 def test_example_config_is_valid():

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Mikoshi</vendor>
+  <vendor_url>https://github.com/NullWRX/Mikoshi</vendor_url>
+  <icon_name>io.github.nullwrx.Mikoshi</icon_name>
+  <action id="io.github.nullwrx.mikoshi.manage">
+    <description>Manage backups with Mikoshi</description>
+    <message>Mikoshi needs administrator access to read, change and restore backups</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/mikoshi</annotate>
+  </action>
+</policyconfig>

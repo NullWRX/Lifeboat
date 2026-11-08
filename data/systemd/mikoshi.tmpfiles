@@ -1,0 +1,9 @@
+# Runtime and state folders for Mikoshi.
+d /run/mikoshi 0755 root root -
+d /run/mikoshi/status 0755 root root -
+d /run/mikoshi/locks 0700 root root -
+d /run/mikoshi/mnt 0700 root root -
+d /var/lib/mikoshi 0755 root root -
+d /var/lib/mikoshi/undo 0700 root root -
+d /var/log/mikoshi 0700 root root -
+d /etc/mikoshi 0755 root root -
