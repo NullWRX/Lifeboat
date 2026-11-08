@@ -163,17 +163,17 @@ lists available logs.
 .SH HOW BACKUPS ARE STORED
 .nf
 <destination>/lifeboat/<host>/
-    host.json                which computer this folder belongs to
+    host.json                    which computer this folder belongs to
     <job>/
-        job.json             the job's settings, to recreate it after a reinstall
+        job.json                 the job's settings, to recreate it after a reinstall
+        latest -> snapshots/<newest>
         snapshots/
-        2026-11-07_02-30-00/
-            files/          the backed-up paths, laid out from /
-            meta/           package lists, disk layout, service lists...
-            manifest.json   what was backed up, how, and the result
-            pinned          present when pinned
-        .in-progress/       an unfinished run (resumed next time)
-    latest -> snapshots/<newest>
+            2026-11-07_02-30-00/
+                files/           the backed-up paths, laid out from /
+                meta/            package lists, disk layout, service lists...
+                manifest.json    what was backed up, how, and the result
+                pinned           present when pinned
+            .in-progress/        an unfinished run (resumed next time)
 .fi
 .PP
 On destinations that can't store Linux owners directly but do support extended attributes
